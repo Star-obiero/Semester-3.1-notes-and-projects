@@ -1,0 +1,430 @@
+{
+ "cats": [
+  {
+   "id": "tents",
+   "name": "Tents",
+   "art": "tent",
+   "blurb": "Nine tent types for events, relief, camps, health and storage.",
+   "items": [
+    {
+     "id": "camping",
+     "name": "Camping tents",
+     "art": "dome",
+     "desc": "Lightweight, weatherproof tents for camps, safaris and outdoor trips."
+    },
+    {
+     "id": "exhibition",
+     "name": "Exhibition tents",
+     "art": "marquee",
+     "desc": "Clean, branded display tents for shows, trade fairs and promotions."
+    },
+    {
+     "id": "luxury",
+     "name": "Luxury tents",
+     "art": "luxury",
+     "desc": "Bell and lodge-style tents for camps, resorts and premium events."
+    },
+    {
+     "id": "military",
+     "name": "Military tents",
+     "art": "military",
+     "desc": "Heavy-duty canvas tents built for rough use and quick set-up."
+    },
+    {
+     "id": "party",
+     "name": "Party tents",
+     "art": "marquee",
+     "desc": "Marquees for weddings, birthdays, church events and celebrations."
+    },
+    {
+     "id": "relief",
+     "name": "Relief tents",
+     "art": "relief",
+     "desc": "Fast emergency shelter for disaster response and displaced families."
+    },
+    {
+     "id": "stretch",
+     "name": "Stretch tents",
+     "art": "stretch",
+     "desc": "Flowing, flexible tents that suit any terrain and look stunning at events."
+    },
+    {
+     "id": "hospital",
+     "name": "Hospital tents",
+     "art": "hospital",
+     "desc": "Clinic, isolation and field-hospital tents that are easy to clean."
+    },
+    {
+     "id": "rubb",
+     "name": "Rubb hall tents",
+     "art": "hall",
+     "desc": "Large-span hall tents for storage, workshops, events and site use."
+    }
+   ]
+  },
+  {
+   "id": "car-park-shades",
+   "name": "Car park shades",
+   "art": "carshade",
+   "blurb": "Protect vehicles from sun, rain and hail.",
+   "items": [
+    {
+     "id": "cantilever",
+     "name": "Cantilever car park shade",
+     "art": "carshade",
+     "desc": "One-side support so nothing blocks parking or door opening."
+    },
+    {
+     "id": "tensile",
+     "name": "Tensile membrane shade",
+     "art": "sail",
+     "desc": "Curved, modern fabric shades for offices, malls and estates."
+    },
+    {
+     "id": "steel",
+     "name": "Steel-frame parking shade",
+     "art": "roof",
+     "desc": "Strong, low-maintenance frames with fabric or sheet roofing."
+    }
+   ]
+  },
+  {
+   "id": "car-covers",
+   "name": "Car covers",
+   "art": "carcover",
+   "blurb": "Custom-fit covers that protect paint and interiors.",
+   "items": [
+    {
+     "id": "standard",
+     "name": "Standard vehicle covers",
+     "art": "carcover",
+     "desc": "Affordable everyday covers for sedans, SUVs and pick-ups."
+    },
+    {
+     "id": "custom",
+     "name": "Custom-fit covers",
+     "art": "carcover",
+     "desc": "Made to the exact measurements of your vehicle."
+    },
+    {
+     "id": "heavy",
+     "name": "Heavy-duty waterproof covers",
+     "art": "carcover",
+     "desc": "Thick, water-resistant covers for outdoor parking."
+    }
+   ]
+  },
+  {
+   "id": "garden-umbrellas",
+   "name": "Garden umbrellas",
+   "art": "umbrella",
+   "blurb": "Shade for gardens, restaurants, pools and patios.",
+   "items": [
+    {
+     "id": "centre",
+     "name": "Centre-pole umbrella",
+     "art": "umbrella",
+     "desc": "Classic garden umbrella that fits a table or stands alone."
+    },
+    {
+     "id": "side",
+     "name": "Cantilever (side-pole) umbrella",
+     "art": "umbrella",
+     "desc": "Offset pole for uninterrupted shade over seating areas."
+    },
+    {
+     "id": "market",
+     "name": "Market / beach umbrella",
+     "art": "umbrella",
+     "desc": "Portable umbrellas for traders, beaches and events."
+    }
+   ]
+  },
+  {
+   "id": "shade-sails",
+   "name": "Shade sails",
+   "art": "sail",
+   "blurb": "Stylish sails that shade patios, pools and play areas.",
+   "items": [
+    {
+     "id": "triangle",
+     "name": "Triangle shade sails",
+     "art": "sail",
+     "desc": "Popular, easy-to-fit sails in a range of colours."
+    },
+    {
+     "id": "rect",
+     "name": "Square / rectangle sails",
+     "art": "sail",
+     "desc": "Wide coverage for patios, restaurants and yards."
+    },
+    {
+     "id": "custom",
+     "name": "Custom-shaped sails",
+     "art": "sail",
+     "desc": "Designed around your space, poles and layout."
+    }
+   ]
+  },
+  {
+   "id": "canopies",
+   "name": "Canopies",
+   "art": "canopy",
+   "blurb": "Fixed and retractable canopies for entrances and walkways.",
+   "items": [
+    {
+     "id": "fixed",
+     "name": "Fixed canopies",
+     "art": "canopy",
+     "desc": "Permanent cover for doors, windows, shops and entrances."
+    },
+    {
+     "id": "retract",
+     "name": "Retractable awnings",
+     "art": "canopy",
+     "desc": "Open when you need shade, fold away when you do not."
+    },
+    {
+     "id": "walkway",
+     "name": "Walkway canopies",
+     "art": "roof",
+     "desc": "Covered paths for schools, hospitals and compounds."
+    }
+   ]
+  },
+  {
+   "id": "playground-covers",
+   "name": "Playground covers",
+   "art": "playground",
+   "blurb": "Safe, shaded play areas for schools and homes.",
+   "items": [
+    {
+     "id": "school",
+     "name": "School playground shades",
+     "art": "playground",
+     "desc": "Large-area shade so children can play safely in the sun."
+    },
+    {
+     "id": "play-area",
+     "name": "Play-area sails",
+     "art": "sail",
+     "desc": "Fabric sails over sandpits, swings and slides."
+    }
+   ]
+  },
+  {
+   "id": "gazebos",
+   "name": "Gazebos",
+   "art": "gazebo",
+   "blurb": "Garden and event gazebos in steel, canvas or shade net.",
+   "items": [
+    {
+     "id": "steel",
+     "name": "Steel gazebo",
+     "art": "gazebo",
+     "desc": "Strong permanent structure with fabric or sheet roof."
+    },
+    {
+     "id": "net",
+     "name": "Shade-net gazebo",
+     "art": "gazebo",
+     "desc": "Light, breathable cover ideal for gardens and nurseries."
+    },
+    {
+     "id": "canvas",
+     "name": "Canvas gazebo",
+     "art": "gazebo",
+     "desc": "Traditional, durable cover with a natural look."
+    }
+   ]
+  },
+  {
+   "id": "shade-nets",
+   "name": "Shade net covers",
+   "art": "net",
+   "blurb": "Shade and privacy netting for farms, yards and buildings.",
+   "items": [
+    {
+     "id": "farm",
+     "name": "Farm / greenhouse shade net",
+     "art": "net",
+     "desc": "Protects crops and seedlings from harsh sun."
+    },
+    {
+     "id": "privacy",
+     "name": "Privacy screens",
+     "art": "net",
+     "desc": "Fence and wall screens for compounds and back yards."
+    },
+    {
+     "id": "yard",
+     "name": "Yard and parking shade net",
+     "art": "net",
+     "desc": "Affordable cover for open yards and parking areas."
+    }
+   ]
+  },
+  {
+   "id": "pvc",
+   "name": "PVC",
+   "art": "pvc",
+   "blurb": "PVC tarpaulins, covers and coated fabric structures.",
+   "items": [
+    {
+     "id": "tarpaulin",
+     "name": "PVC tarpaulin",
+     "art": "pvc",
+     "desc": "Waterproof, tough sheeting cut to size."
+    },
+    {
+     "id": "structures",
+     "name": "PVC fabric structures",
+     "art": "canopy",
+     "desc": "Waterproof roofs, walls and covers made from PVC fabric."
+    },
+    {
+     "id": "truck",
+     "name": "Truck and load covers",
+     "art": "pvc",
+     "desc": "Strong covers that protect cargo on the road."
+    }
+   ]
+  },
+  {
+   "id": "fabrication",
+   "name": "Metal fabrication",
+   "art": "roof",
+   "blurb": "Doors, windows, roofs, beds and metallic furniture.",
+   "items": [
+    {
+     "id": "doors",
+     "name": "Doors",
+     "art": "door",
+     "desc": "Steel doors and gates made to your opening size and style."
+    },
+    {
+     "id": "windows",
+     "name": "Windows",
+     "art": "window",
+     "desc": "Steel windows and grilles, plain or decorative."
+    },
+    {
+     "id": "roofs",
+     "name": "Roofs",
+     "art": "roof",
+     "desc": "Steel trusses and roofing for houses, halls and shades."
+    },
+    {
+     "id": "beds",
+     "name": "Beds",
+     "art": "bed",
+     "desc": "Strong metal beds and bunks for homes, hostels and camps."
+    },
+    {
+     "id": "furniture",
+     "name": "Metallic furniture",
+     "art": "furniture",
+     "desc": "Tables, chairs, shelves and more, made from steel."
+    }
+   ]
+  }
+ ],
+ "new": [
+  {
+   "id": "n1",
+   "date": "September 2026",
+   "name": "6-bay cantilever car park shade",
+   "art": "carshade",
+   "cat": "Car park shades",
+   "desc": "A clean cantilever design with a single row of posts, so every bay stays fully open. Waterproof fabric, powder-coated steel."
+  },
+  {
+   "id": "n2",
+   "date": "August 2026",
+   "name": "Steel-frame bell tent",
+   "art": "luxury",
+   "cat": "Tents",
+   "desc": "A sturdy bell tent with a reinforced steel frame and cream canvas, made for camps and lodges."
+  },
+  {
+   "id": "n3",
+   "date": "July 2026",
+   "name": "Fold-away steel bunk bed",
+   "art": "bed",
+   "cat": "Metal fabrication",
+   "desc": "A strong bunk bed that dismantles quickly. Ideal for hostels, schools and camps."
+  },
+  {
+   "id": "n4",
+   "date": "June 2026",
+   "name": "Two-colour play-area sail",
+   "art": "playground",
+   "cat": "Playground covers",
+   "desc": "Overlapping sails shade the swings and slide while letting warm air move through."
+  }
+ ],
+ "posts": [
+  {
+   "id": "car-cover",
+   "date": "Tips",
+   "title": "Why your vehicle deserves a proper cover",
+   "art": "carcover",
+   "lead": "Sun, dust, bird droppings and hail are quietly ageing your car every single day.",
+   "body": [
+    "A good cover is one of the cheapest ways to protect what is often your second most expensive purchase. Strong sun fades paint and cracks dashboards. Dust and tree sap bake onto the body. Hail and falling branches leave dents that cost far more than a cover ever will.",
+    "A custom-fit cover, cut to your exact vehicle, stays put in the wind and does not rub the paint. If you park outside all year, choose a heavy-duty waterproof fabric. If you park in a compound with a roof, a lighter dust cover is enough.",
+    "For several vehicles in one place, a car park shade may be the better investment: one structure protects every bay, with no covering and uncovering each day."
+   ]
+  },
+  {
+   "id": "event-tent",
+   "date": "Events",
+   "title": "How to choose the right tent for a wedding or event",
+   "art": "marquee",
+   "lead": "The right tent is about more than size. Here is what to check before you order.",
+   "body": [
+    "Start with the guest list. As a rough guide, a seated event needs about one square metre per guest, and more if you want a dance floor, buffet tables or a stage.",
+    "Think about the ground. A tent on grass, murram or concrete is anchored differently, so tell us the surface when you order. Consider the weather too: a good tent keeps guests dry in rain and cool in strong sun.",
+    "Finally, plan the extras: side walls, flooring, lighting and entrances. Tell us your ideas and we will make the tent to fit them."
+   ]
+  },
+  {
+   "id": "canvas-pvc",
+   "date": "Materials",
+   "title": "Canvas or PVC: which material should you choose?",
+   "art": "pvc",
+   "lead": "Both are tough. They just suit different jobs.",
+   "body": [
+    "Canvas is breathable, so it stays cooler inside on hot days. It is a traditional choice for camping, relief and long-term shelter, and it can be treated to resist water.",
+    "PVC is fully waterproof and easy to wipe clean, which makes it ideal for truck covers, canopies, hospital tents and anywhere that needs to stay dry and hygienic.",
+    "Not sure which fits? Tell us what the structure is for and where it will stand, and we will recommend the right fabric."
+   ]
+  }
+ ],
+ "jobs": [
+  {
+   "id": "tailor",
+   "title": "Tent tailor / industrial machinist",
+   "type": "Full time",
+   "desc": "Cut and sew canvas, PVC and shade fabrics to customer measurements."
+  },
+  {
+   "id": "welder",
+   "title": "Welder / metal fabricator",
+   "type": "Full time",
+   "desc": "Build frames, doors, windows, roofs, beds and furniture from drawings."
+  },
+  {
+   "id": "crew",
+   "title": "Site installation crew",
+   "type": "Contract",
+   "desc": "Erect tents, shades and canopies at customer sites. Some travel required."
+  },
+  {
+   "id": "sales",
+   "title": "Sales and customer care officer",
+   "type": "Full time",
+   "desc": "Answer enquiries, prepare quotes and follow up on orders and deliveries."
+  }
+ ]
+}

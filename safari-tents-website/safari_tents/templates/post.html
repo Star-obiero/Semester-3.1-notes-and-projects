@@ -1,0 +1,5 @@
+{% extends 'base.html' %}
+{% block title %}{{ p.title }} · {{ site.name }}{% endblock %}
+{% block content %}<section class="wrap page"><div class="crumbs"><a href="{{ url_for('blog') }}">Blog</a> / {{ p.date }}</div>
+<article class="article"><h1>{{ p.title }}</h1><p class="lead">{{ p.lead }}</p>{% for t in p.body %}<p>{{ t }}</p>{% endfor %}
+<div class="band" style="margin-top:30px"><div><h3 style="color:var(--bg);margin:0">Need a quote?</h3><p>Tell us what you need and we will make it.</p></div><a class="btn" href="{{ url_for('products') }}">Browse products</a></div></article></section>{% endblock %}

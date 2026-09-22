@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Jobs &amp; earn · {{ site.name }}{% endblock %}
+{% block content %}<section class="wrap page">
+<h1>Jobs &amp; earning opportunities</h1><p class="lead">Join our team, or earn by introducing customers to us.</p>
+<h2 style="margin-top:30px">Open positions</h2>
+<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+{% for j in jobs %}<div class="card"><div class="body"><span class="count">{{ j.type }}</span><h3>{{ j.title }}</h3><p>{{ j.desc }}</p>
+<div class="row"><button class="btn sm" data-action="apply" data-role="{{ j.title }}">Apply</button></div></div></div>{% endfor %}
+</div>
+<div class="panel" style="margin-top:22px" id="apply"><h3>Job application</h3>
+<form method="post" action="{{ url_for('jobs_apply') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+<input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+<div class="fields"><label>Full name<input name="name" required></label><label>Phone number<input name="phone" type="tel" required></label>
+<label>Email (optional)<input name="email" type="email"></label>
+<label>Position<select name="role" id="jobrole">{% for j in jobs %}<option>{{ j.title }}</option>{% endfor %}<option>Other / general application</option></select></label></div>
+<label>Tell us about yourself and your experience<textarea name="msg" rows="4"></textarea></label>
+<button class="btn" type="submit">Send application</button></form></div>
+
+<h2 style="margin-top:46px" id="earn">Refer a customer, earn a commission</h2>
+<p class="lead">You do not need to work for us. If you introduce a customer who places and receives an order, you earn {{ site.commission }}.</p>
+<div class="steps">
+<div><b>Create an account</b>Register for free and you get your own referral code.</div>
+<div><b>Share your code</b>Give it to anyone who needs a tent, shade, cover or fabrication.</div>
+<div><b>They order</b>The customer enters your code when they register or order.</div>
+<div><b>You earn</b>Once the order is delivered and paid, we pay your commission.</div></div>
+{% if user %}<div class="panel"><h3>Your referral code</h3><p style="font-size:1.6rem;font-weight:800;margin:.2em 0">{{ user.ref_code }}</p>
+<div class="row"><button class="btn sm" data-action="copy" data-text="{{ user.ref_code }}">Copy code</button><a class="btn sm ghost" href="{{ url_for('account') }}">See my referrals</a></div></div>
+{% else %}<div class="row"><a class="btn" href="{{ url_for('register', next=url_for('account')) }}">Create an account &amp; get my code</a><a class="btn ghost" href="{{ url_for('login') }}">Log in</a></div>{% endif %}
+</section>{% endblock %}

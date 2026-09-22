@@ -1,0 +1,5 @@
+{% extends 'base.html' %}{% from '_macros.html' import cat_card %}
+{% block title %}Products · {{ site.name }}{% endblock %}
+{% block content %}<section class="wrap page"><h1>Our products</h1>
+<p class="lead">Choose a category to see everything we make in it. Then pick a product and order it — you pay on delivery.</p>
+<div class="grid" style="margin-top:22px">{% for c in cats %}{{ cat_card(c, idx) }}{% endfor %}</div></section>{% endblock %}

@@ -1,0 +1,13 @@
+{% extends 'base.html' %}{% from '_macros.html' import artbox %}
+{% block title %}Gallery · {{ site.name }}{% endblock %}
+{% block content %}<section class="wrap page"><h1>Gallery</h1>
+<p class="lead">A look at what we make. Tap “Order this” on anything you like.</p>
+<div class="chips" id="chips"><button class="chip on" data-action="gfilter" data-f="all">All</button>
+{% for c in cats %}<button class="chip" data-action="gfilter" data-f="{{ c.id }}">{{ c.name }}</button>{% endfor %}</div>
+<div class="grid">
+{% for t in tiles %}<div class="card hov" data-cat="{{ t.cat_id }}">{{ artbox(t.art, t.seed, t.img, t.name) }}
+<div class="body"><h3 style="margin:0;font-size:1rem">{{ t.name }}</h3>
+{% if t.id %}<div class="row"><button class="btn sm" data-action="order" data-id="{{ t.id }}" data-name="{{ t.name }}" data-cat="{{ t.cat }}">Order this</button></div>
+{% else %}<div class="row"><a class="btn sm" href="{{ url_for('category', cat_id=t.cat_id) }}">See {{ t.cat }} products</a></div>{% endif %}
+</div></div>{% endfor %}
+</div></section>{% endblock %}

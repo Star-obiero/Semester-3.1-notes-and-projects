@@ -1,0 +1,8 @@
+{% extends 'base.html' %}{% from '_macros.html' import product_card %}
+{% block title %}{{ c.name }} · {{ site.name }}{% endblock %}
+{% block content %}<section class="wrap page">
+<div class="crumbs"><a href="{{ url_for('products') }}">Products</a> / {{ c.name }}</div>
+<h1>{{ c.name }}</h1><p class="lead">{{ c.blurb }} Order straight away, or add several items to one order.</p>
+<div class="grid" style="margin-top:22px">{% for p in items %}{{ product_card(p) }}{% endfor %}</div>
+<div class="notice" style="margin-top:26px">Prices are confirmed when we confirm your order, based on your size and design. <b>You pay on delivery.</b> Need something not listed? Describe it in the “anything else” box on the order form.</div>
+</section>{% endblock %}

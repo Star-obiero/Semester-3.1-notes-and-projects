@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Admin · Orders{% endblock %}
+{% block content %}<section class="wrap page"><h1>Admin</h1>{% include '_admin_nav.html' %}
+<div class="features" style="margin-top:0">
+<div class="feat"><b>{{ counts.get('new', 0) }}</b><span>new orders</span></div>
+<div class="feat"><b>{{ stats.customers }}</b><span>registered customers</span></div>
+<div class="feat"><b>{{ stats.messages }}</b><span>unread messages</span></div>
+<div class="feat"><b>{{ stats.applications }}</b><span>new job applications</span></div></div>
+<div class="chips"><a class="chip {{ 'on' if not current }}" href="{{ url_for('admin') }}">All</a>
+{% for k, label in statuses %}<a class="chip {{ 'on' if current==k }}" href="{{ url_for('admin', status=k) }}">{{ label }} ({{ counts.get(k, 0) }})</a>{% endfor %}</div>
+<div class="tblwrap"><table class="tbl"><thead><tr><th>Order</th><th>Placed</th><th>Customer</th><th>Location</th><th>Items</th><th>Status</th></tr></thead><tbody>
+{% for o in orders %}<tr><td><a href="{{ url_for('admin_order', oid=o.id) }}"><b>{{ o.ref }}</b></a></td><td>{{ o.created_at|eat }}</td><td>{{ o.name }}<br><span class="small">{{ o.phone }}</span></td><td>{{ o.location }}</td><td>{{ o.n }}</td><td><span class="pill s-{{ o.status }}">{{ status_label[o.status] }}</span></td></tr>
+{% else %}<tr><td colspan="6">No orders here yet.</td></tr>{% endfor %}</tbody></table></div></section>{% endblock %}

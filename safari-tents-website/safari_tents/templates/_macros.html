@@ -1,0 +1,26 @@
+{% macro artbox(kind, seed=0, img=None, alt='') -%}
+{%- if img -%}<span class="art"><img src="{{ url_for('uploads', name=img) }}" alt="{{ alt }}" loading="lazy"></span>
+{%- else -%}<span class="art" data-art="{{ kind }}" data-seed="{{ seed }}" role="img" aria-label="{{ alt }}"></span>{%- endif -%}
+{%- endmacro %}
+
+{% macro order_buttons(p, label='Order now') -%}
+<div class="row">
+  <button class="btn sm" data-action="order" data-id="{{ p.id }}" data-name="{{ p.name }}" data-cat="{{ p.cat }}">{{ label }}</button>
+  <button class="btn sm ghost" data-action="add" data-id="{{ p.id }}" data-name="{{ p.name }}" data-cat="{{ p.cat }}">+ Add to order</button>
+</div>
+{%- endmacro %}
+
+{% macro product_card(p) -%}
+<div class="card hov">{{ artbox(p.art, p.seed, p.img, p.name) }}
+  <div class="body"><h3>{{ p.name }}</h3><p>{{ p.desc }}</p>{{ order_buttons(p) }}</div></div>
+{%- endmacro %}
+
+{% macro new_card(p) -%}
+<div class="card hov"><span class="badge">New</span>{{ artbox(p.art, p.seed, p.img, p.name) }}
+  <div class="body"><span class="meta">{{ p.date }} · {{ p.cat }}</span><h3>{{ p.name }}</h3><p>{{ p.desc }}</p>{{ order_buttons(p, 'Order this') }}</div></div>
+{%- endmacro %}
+
+{% macro cat_card(c, idx) -%}
+<a class="card" href="{{ url_for('category', cat_id=c.id) }}">{{ artbox(c.art, idx[c.id], None, c.name) }}
+  <div class="body"><span class="count">{{ c['items']|length }} {{ 'product' if c['items']|length==1 else 'products' }}</span><h3>{{ c.name }}</h3><p>{{ c.blurb }}</p></div></a>
+{%- endmacro %}

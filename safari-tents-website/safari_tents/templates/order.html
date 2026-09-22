@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Place an order · {{ site.name }}{% endblock %}
+{% block content %}<section class="wrap page"><h1>Place an order</h1>
+<p class="lead">Tell us what you need and where to deliver it. <b>You pay on delivery</b> — nothing is charged online.</p>
+<div class="two" style="margin-top:22px">
+<div><h2 style="font-size:1.3rem">Your items</h2><div id="cartlist"></div>
+<p style="margin-top:14px"><a class="btn ghost sm" href="{{ url_for('products') }}">+ Add more products</a></p></div>
+<form class="panel" id="orderform"><h3>Delivery details</h3>
+<p class="small">Ordering as <b>{{ user.name }}</b> ({{ user.phone }}). We will contact you on this number.</p>
+<div class="fields"><label>Delivery location<input name="location" required placeholder="Town, estate or address"></label>
+<label>Preferred delivery date<input name="date" type="date"></label></div>
+<label>Anything else? (custom sizes, designs, items not listed)<textarea name="extra" rows="3"></textarea></label>
+<label>Referral code (optional)<input name="ref" placeholder="e.g. JM-4521"></label>
+<div class="notice">Payment is made <b>on delivery</b>. We will confirm the price with you before we start.</div>
+<p class="err" id="orderr"></p>
+<button class="btn" type="submit" id="ordersubmit">Place order</button></form></div></section>{% endblock %}

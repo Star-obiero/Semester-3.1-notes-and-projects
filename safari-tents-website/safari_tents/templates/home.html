@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import cat_card, new_card %}
+{% block content %}
+<section class="hero"><div class="wrap">
+  <div>
+    <p class="eyebrow">Tents · Shades · Metal fabrication</p>
+    <h1>Shade, shelter and steel — made to your size.</h1>
+    <p class="lead">We make tents, car park shades, shade sails, canopies, covers and steel furniture. Choose what you need, place your order, and <b>pay when it is delivered</b>.</p>
+    <div class="row"><a class="btn" href="{{ url_for('products') }}">Browse products</a><a class="btn ghost" href="{{ url_for('order_page') }}">Place an order</a></div>
+  </div>
+  <div class="art" data-hero></div>
+</div></section>
+<div class="wrap">
+  <div class="features">
+    <div class="feat"><b>Made to measure</b><span>Tell us the size and design you want and we make it.</span></div>
+    <div class="feat"><b>Pay on delivery</b><span>No online payment. You pay when your order arrives.</span></div>
+    <div class="feat"><b>Tents to steel</b><span>From camping tents to doors, roofs and metal furniture.</span></div>
+    <div class="feat"><b>Refer and earn</b><span>Introduce a customer and earn a commission.</span></div>
+  </div>
+  <section class="block"><div class="head"><h2>What we make</h2><a href="{{ url_for('products') }}">See all products →</a></div>
+    <div class="grid">{% for c in cats %}{{ cat_card(c, idx) }}{% endfor %}</div></section>
+  {% if latest %}<section class="block"><div class="head"><h2>Newly made</h2><a href="{{ url_for('new_page') }}">All new products →</a></div>
+    <div class="grid">{% for p in latest %}{{ new_card(p) }}{% endfor %}</div></section>{% endif %}
+  <div class="band"><div><h2>Ready to order?</h2><p>Pick your products, tell us where to deliver, and we will confirm your order.</p></div><a class="btn" href="{{ url_for('products') }}">Start ordering</a></div>
+</div>
+{% endblock %}

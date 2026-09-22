@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Create account · {{ site.name }}{% endblock %}
+{% block content %}<section class="wrap page"><div class="auth panel"><h1 style="font-size:2rem">Create your account</h1>
+<p class="small">An account lets you place orders, track them, and earn commission through our referral programme.</p>
+<form method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+<label>Full name<input name="name" required autocomplete="name" value="{{ form.get('name','') }}"></label>
+<label>Email<input name="email" type="email" required autocomplete="email" value="{{ form.get('email','') }}"></label>
+<label>Phone number<input name="phone" type="tel" required autocomplete="tel" placeholder="0712 345 678" value="{{ form.get('phone','') }}"></label>
+<label>Password (at least 8 characters)<input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+<label>Confirm password<input name="password2" type="password" required minlength="8" autocomplete="new-password"></label>
+<label>Referral code (optional)<input name="ref" value="{{ form.get('ref','') }}" placeholder="e.g. JM-4521"></label>
+<label class="check"><input type="checkbox" name="consent" value="1" {{ 'checked' if form.get('consent') }}> <span>I agree to the <a href="{{ url_for('privacy') }}" target="_blank">privacy notice</a> and to {{ site.name }} keeping my details to process my orders.</span></label>
+<button class="btn" type="submit" style="width:100%">Create account</button></form>
+<p class="small" style="margin-top:14px">Already registered? <a href="{{ url_for('login', next=request.args.get('next')) }}">Log in</a>.</p></div></section>{% endblock %}

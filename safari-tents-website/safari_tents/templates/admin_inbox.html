@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Admin · Messages{% endblock %}
+{% block content %}<section class="wrap page"><h1>Admin</h1>{% include '_admin_nav.html' %}
+<h2 style="font-size:1.3rem">Contact messages</h2>
+{% for m in msgs %}<div class="panel" style="margin-bottom:12px;{{ 'opacity:.6' if m.handled }}"><div class="row" style="justify-content:space-between"><b>{{ m.name }}</b><span class="small">{{ m.created_at|eat }}</span></div>
+<p class="small" style="margin:.2em 0"><a target="_blank" rel="noopener" href="https://wa.me/{{ m.phone }}">{{ m.phone }}</a></p><p style="white-space:pre-wrap">{{ m.body }}</p>
+{% if not m.handled %}<form method="post" action="{{ url_for('admin_inbox_done', kind='messages', rid=m.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn sm ghost" type="submit">Mark as handled</button></form>{% endif %}</div>
+{% else %}<p class="small">No messages yet.</p>{% endfor %}
+<h2 style="font-size:1.3rem;margin-top:30px">Job applications</h2>
+{% for a in apps %}<div class="panel" style="margin-bottom:12px;{{ 'opacity:.6' if a.handled }}"><div class="row" style="justify-content:space-between"><b>{{ a.name }} — {{ a.role }}</b><span class="small">{{ a.created_at|eat }}</span></div>
+<p class="small" style="margin:.2em 0"><a target="_blank" rel="noopener" href="https://wa.me/{{ a.phone }}">{{ a.phone }}</a>{% if a.email %} · {{ a.email }}{% endif %}</p><p style="white-space:pre-wrap">{{ a.body or '' }}</p>
+{% if not a.handled %}<form method="post" action="{{ url_for('admin_inbox_done', kind='applications', rid=a.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn sm ghost" type="submit">Mark as handled</button></form>{% endif %}</div>
+{% else %}<p class="small">No applications yet.</p>{% endfor %}</section>{% endblock %}

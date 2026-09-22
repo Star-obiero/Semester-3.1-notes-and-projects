@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}My account · {{ site.name }}{% endblock %}
+{% block content %}<section class="wrap page">
+{% if placed %}<div class="flash ok"><b>Order {{ placed }} received.</b> We will contact you on {{ user.phone }} to confirm the details and the price. You pay on delivery.</div>{% endif %}
+<h1>Hello, {{ user.name.split()[0] }}</h1>
+<div class="two" style="margin-top:18px">
+<div><h2 style="font-size:1.3rem">My orders</h2>
+{% for o in orders %}<div class="panel" style="margin-bottom:14px"><div class="row" style="justify-content:space-between"><b>{{ o.ref }}</b><span class="pill s-{{ o.status }}">{{ status_label[o.status] }}</span></div>
+<p class="small" style="margin:.2em 0 .6em">{{ o.created_at|eat }} · deliver to {{ o.location }}{% if o.delivery_date %} · by {{ o.delivery_date }}{% endif %}</p>
+<ul class="plain">{% for it in items.get(o.id, []) %}<li>{{ it.name }} × {{ it.qty }}{% if it.note %} <span class="small">— {{ it.note }}</span>{% endif %}</li>{% endfor %}</ul>
+{% if o.extra %}<p class="small">Extra details: {{ o.extra }}</p>{% endif %}</div>
+{% else %}<div class="notice">You have not placed any orders yet. <a href="{{ url_for('products') }}">Browse products</a>.</div>{% endfor %}
+</div>
+<div>
+<div class="panel"><h3>My referral code</h3><p style="font-size:1.6rem;font-weight:800;margin:.2em 0">{{ user.ref_code }}</p>
+<p class="small">Share it with people who need our products. You earn {{ site.commission }}.</p>
+<p><b>{{ ref['n'] or 0 }}</b> order(s) from people you referred · <b>{{ ref['d'] or 0 }}</b> delivered &amp; paid</p>
+<button class="btn sm" data-action="copy" data-text="{{ user.ref_code }}">Copy code</button></div>
+<div class="panel" style="margin-top:16px"><h3>Change password</h3>
+<form method="post" action="{{ url_for('change_password') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+<label>Current password<input type="password" name="current" required autocomplete="current-password"></label>
+<label>New password<input type="password" name="new" required minlength="8" autocomplete="new-password"></label>
+<button class="btn sm" type="submit">Update password</button></form></div>
+</div></div></section>{% endblock %}

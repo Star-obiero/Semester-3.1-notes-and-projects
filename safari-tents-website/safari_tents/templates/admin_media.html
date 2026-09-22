@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Admin · New products &amp; gallery{% endblock %}
+{% block content %}<section class="wrap page"><h1>Admin</h1>{% include '_admin_nav.html' %}
+<div class="two">
+<form class="panel" method="post" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="product"><h3>Post a new product</h3>
+<label>Product name<input name="name" required></label>
+<label>Category<select name="cat_id">{% for c in cats %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label>
+<label>Description<textarea name="desc" rows="3" required></textarea></label>
+<label>Photo (JPG, PNG or WEBP, max 5 MB)<input type="file" name="image" accept="image/jpeg,image/png,image/webp"></label>
+<button class="btn" type="submit">Post to “New products”</button></form>
+<form class="panel" method="post" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="gallery"><h3>Add a gallery photo</h3>
+<label>Title<input name="title" required></label>
+<label>Category<select name="cat_id">{% for c in cats %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label>
+<label>Photo (JPG, PNG or WEBP, max 5 MB)<input type="file" name="image" accept="image/jpeg,image/png,image/webp" required></label>
+<button class="btn" type="submit">Add to gallery</button></form></div>
+<h2 style="font-size:1.3rem;margin-top:30px">Posted new products</h2>
+<div class="tblwrap"><table class="tbl"><tbody>{% for n in new %}<tr><td><b>{{ n.name }}</b><br><span class="small">{{ n.category }} · {{ n.created_at|eat('%d %b %Y') }}{{ ' · has photo' if n.image }}</span></td>
+<td><form method="post" action="{{ url_for('admin_media_delete', kind='product', rid=n.id) }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn sm ghost" type="submit">Delete</button></form></td></tr>{% else %}<tr><td>None yet.</td></tr>{% endfor %}</tbody></table></div>
+<h2 style="font-size:1.3rem;margin-top:30px">Gallery photos</h2>
+<div class="tblwrap"><table class="tbl"><tbody>{% for g_ in gal %}<tr><td><b>{{ g_.title }}</b></td>
+<td><form method="post" action="{{ url_for('admin_media_delete', kind='gallery', rid=g_.id) }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn sm ghost" type="submit">Delete</button></form></td></tr>{% else %}<tr><td>None yet.</td></tr>{% endfor %}</tbody></table></div>
+</section>{% endblock %}

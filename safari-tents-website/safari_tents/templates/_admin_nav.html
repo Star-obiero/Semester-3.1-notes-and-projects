@@ -1,0 +1,8 @@
+<div class="chips adminnav">
+  <a class="chip {{ 'on' if request.endpoint in ('admin','admin_order') }}" href="{{ url_for('admin') }}">Orders</a>
+  <a class="chip {{ 'on' if request.endpoint=='admin_customers' }}" href="{{ url_for('admin_customers') }}">Customers</a>
+  <a class="chip {{ 'on' if request.endpoint=='admin_inbox' }}" href="{{ url_for('admin_inbox') }}">Messages &amp; applications</a>
+  <a class="chip {{ 'on' if request.endpoint=='admin_referrals' }}" href="{{ url_for('admin_referrals') }}">Referrals</a>
+  <a class="chip {{ 'on' if request.endpoint=='admin_media' }}" href="{{ url_for('admin_media') }}">New products &amp; gallery</a>
+  <a class="chip" href="{{ url_for('admin_export') }}">Download orders (CSV)</a>
+</div>

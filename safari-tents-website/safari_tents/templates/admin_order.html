@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Admin · {{ o.ref }}{% endblock %}
+{% block content %}<section class="wrap page"><h1>Admin</h1>{% include '_admin_nav.html' %}
+<div class="crumbs"><a href="{{ url_for('admin') }}">Orders</a> / {{ o.ref }}</div>
+<div class="two">
+<div class="panel"><h3>Order {{ o.ref }}</h3><p class="small">Placed {{ o.created_at|eat }}</p>
+<p><b>{{ o.name }}</b><br>{{ o.phone }} · {{ customer.email }}<br>Deliver to: {{ o.location }}{% if o.delivery_date %}<br>Wanted by: {{ o.delivery_date }}{% endif %}</p>
+<p><a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/{{ o.phone }}">WhatsApp customer</a> <a class="btn sm ghost" href="tel:+{{ o.phone }}">Call</a></p>
+<h3 style="margin-top:18px">Items</h3><ul class="plain">{% for i in items %}<li><b>{{ i.name }}</b> × {{ i.qty }}{% if i.note %} <span class="small">— {{ i.note }}</span>{% endif %}<br><span class="small">{{ i.category }}</span></li>{% else %}<li class="small">No catalogue items (see extra details).</li>{% endfor %}</ul>
+{% if o.extra %}<h3>Extra details</h3><p>{{ o.extra }}</p>{% endif %}
+<p class="small">Payment: on delivery.</p></div>
+<form class="panel" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><h3>Manage order</h3>
+<label>Status<select name="status">{% for k, label in statuses %}<option value="{{ k }}" {{ 'selected' if o.status==k }}>{{ label }}</option>{% endfor %}</select></label>
+<label>Internal note (customers cannot see this)<textarea name="admin_note" rows="3">{{ o.admin_note or '' }}</textarea></label>
+{% if referrer %}<div class="notice">Referred by <b>{{ referrer.name }}</b> ({{ referrer.ref_code }}, {{ referrer.phone }}).</div>
+<label class="check"><input type="checkbox" name="commission_paid" value="1" {{ 'checked' if o.commission_paid }}> <span>Commission paid to {{ referrer.name }}</span></label>{% endif %}
+<button class="btn" type="submit">Save</button></form></div></section>{% endblock %}

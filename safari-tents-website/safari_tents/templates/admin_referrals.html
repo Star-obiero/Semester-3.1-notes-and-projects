@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block title %}Admin · Referrals{% endblock %}
+{% block content %}<section class="wrap page"><h1>Admin</h1>{% include '_admin_nav.html' %}
+<p class="lead">Who has referred customers, and how many of those orders were delivered and paid. Mark commission as paid on each order's page.</p>
+<div class="tblwrap"><table class="tbl"><thead><tr><th>Referrer</th><th>Phone</th><th>Code</th><th>Orders referred</th><th>Delivered &amp; paid</th><th>Commission paid</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.name }}</td><td><a target="_blank" rel="noopener" href="https://wa.me/{{ r.phone }}">{{ r.phone }}</a></td><td>{{ r.ref_code }}</td><td>{{ r.orders }}</td><td>{{ r.delivered or 0 }}</td><td>{{ r.paid or 0 }}</td></tr>
+{% else %}<tr><td colspan="6">No referred orders yet.</td></tr>{% endfor %}</tbody></table></div></section>{% endblock %}

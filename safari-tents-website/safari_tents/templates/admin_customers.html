@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block title %}Admin · Customers{% endblock %}
+{% block content %}<section class="wrap page"><h1>Admin</h1>{% include '_admin_nav.html' %}
+<div class="tblwrap"><table class="tbl"><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Orders</th><th>Referral code</th><th>Referred by</th><th>Joined</th><th></th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.name }}</td><td><a target="_blank" rel="noopener" href="https://wa.me/{{ r.phone }}">{{ r.phone }}</a></td><td>{{ r.email }}</td><td>{{ r.orders }}</td><td>{{ r.ref_code }}</td><td>{{ r.referrer or '' }}</td><td>{{ r.created_at|eat('%d %b %Y') }}</td>
+<td><form method="post" action="{{ url_for('admin_reset_password', uid=r.id) }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn sm ghost" type="submit">Reset password</button></form></td></tr>
+{% else %}<tr><td colspan="8">No customers yet.</td></tr>{% endfor %}</tbody></table></div></section>{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Contact · {{ site.name }}{% endblock %}
+{% block content %}<section class="wrap page"><h1>Contact us</h1><p class="lead">Questions, quotes or help with an order? Reach our team.</p>
+<div class="two" style="margin-top:22px">
+<div class="panel"><h3>Get in touch</h3>
+<p><b>Phone / WhatsApp</b><br><a href="tel:+{{ site.whatsapp }}">{{ site.phone }}</a></p>
+<p><b>Email</b><br><a href="mailto:{{ site.email }}">{{ site.email }}</a></p>
+<p><b>Opening hours</b><br>{{ site.hours }}</p><p><b>Workshop</b><br>{{ site.address }}</p>
+<a class="btn" target="_blank" rel="noopener" href="https://wa.me/{{ site.whatsapp }}">Chat on WhatsApp</a></div>
+<div class="panel"><h3>Send us a message</h3>
+<form method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+<input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+<label>Your name<input name="name" required value="{{ form.get('name') or (user.name if user else '') }}"></label>
+<label>Phone number<input name="phone" type="tel" required value="{{ form.get('phone') or (user.phone if user else '') }}"></label>
+<label>How can we help?<textarea name="msg" rows="5" required>{{ form.get('msg','') }}</textarea></label>
+<button class="btn" type="submit">Send message</button></form></div>
+</div></section>{% endblock %}

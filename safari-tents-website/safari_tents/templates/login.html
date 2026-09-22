@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Log in · {{ site.name }}{% endblock %}
+{% block content %}<section class="wrap page"><div class="auth panel"><h1 style="font-size:2rem">Log in</h1>
+<p class="small">Log in to place orders and see your order history.</p>
+<form method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+<label>Email<input name="email" type="email" required autocomplete="email"></label>
+<label>Password<input name="password" type="password" required autocomplete="current-password"></label>
+<button class="btn" type="submit" style="width:100%">Log in</button></form>
+<p class="small" style="margin-top:14px">New here? <a href="{{ url_for('register', next=request.args.get('next')) }}">Create an account</a>.<br>Forgot your password? Call or WhatsApp us on {{ site.phone }} and we will reset it.</p></div></section>{% endblock %}
