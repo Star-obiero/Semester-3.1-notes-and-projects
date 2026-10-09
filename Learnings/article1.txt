@@ -1,0 +1,9 @@
+n8n: The Open Source Powerhouse for Workflow Automation
+
+In an era where efficiency and integration define business success, automation tools have become indispensable. Among the growing landscape of workflow automation platforms, n8n has emerged as a standout — a flexible, open-source alternative to giants like Zapier, Make (formerly Integromat), and Power Automate.
+
+What Is n8n?
+
+n8n (pronounced “n-eight-n”) is an open-source workflow automation tool that allows users to connect different applications and services to automate repetitive tasks — without needing to write extensive code. Its name stands for “nodemation,” a blend of node and automation.
+
+Unlike many closed, cloud-only automation services, n8n gives users full control: it can be self-hosted, customized, and extended to suit any business or development environment.
