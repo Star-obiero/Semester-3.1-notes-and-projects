@@ -1,0 +1,499 @@
+{
+  "name": "Sales Report Automation",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "ebf0e601-61d9-4e6c-b03a-5d5a52cef062",
+      "name": "When clicking ‘Execute workflow’",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1904,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "77822196-2059-420e-8338-86c094a2dcdb",
+              "name": "businessName",
+              "value": "Makutano wholesalers",
+              "type": "string"
+            },
+            {
+              "id": "46e4b594-5ea8-4053-8c27-0aa7da2fd495",
+              "name": "reportEmail",
+              "value": "pv191130@gmail.com",
+              "type": "string"
+            },
+            {
+              "id": "d8366ade-c240-4274-91bb-afc6e4e7fb82",
+              "name": "periodDays",
+              "value": "7",
+              "type": "string"
+            },
+            {
+              "id": "4d1ba215-67e1-4a16-a2fa-b4edc4eaddb1",
+              "name": "currency",
+              "value": "KES",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4510cd92-6472-4ec6-83b8-53a2c261b97e",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -1680,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s",
+          "mode": "list",
+          "cachedResultName": "sample_sales",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1421934753,
+          "mode": "list",
+          "cachedResultName": "sample_sales",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s/edit#gid=1421934753"
+        },
+        "options": {}
+      },
+      "id": "78dc0103-61c8-4f7d-b615-280a51332b0e",
+      "name": "Get row(s) in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1456,
+        -48
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldsToSummarize": {
+          "values": [
+            {
+              "aggregation": "sum",
+              "field": "quantity"
+            },
+            {
+              "aggregation": "countUnique",
+              "field": "order_id"
+            }
+          ]
+        },
+        "fieldsToSplitBy": "category",
+        "options": {}
+      },
+      "id": "490c8b30-e870-48be-ad7c-06c44c67d191",
+      "name": "Summarize",
+      "type": "n8n-nodes-base.summarize",
+      "typeVersion": 1.1,
+      "position": [
+        -1232,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst rows = $('Get row(s) in sheet').all().map(item => item.json);\n\n// Change these field names if your dataset uses different names.\nconst FIELD = {\n  orderId: 'order_id',\n  date: 'date',\n  product: 'product',\n  quantity: 'quantity',\n  price: 'unit_price',\n  discount: 'discount_pct',\n  cost: 'unit_cost',\n};\n\nconst now = new Date();\nconst DAY = 24 * 60 * 60 * 1000;\n\nconst currentStart = new Date(now.getTime() - 7 * DAY);\nconst previousStart = new Date(now.getTime() - 14 * DAY);\n\nconst money = n => Math.round(n * 100) / 100;\n\nfunction number(value, fallback = 0) {\n  if (value === null || value === undefined || value === '') {\n    return fallback;\n  }\n\n  const n = Number(value);\n  return Number.isFinite(n) ? n : fallback;\n}\n\n// Calculate discounted revenue and gross profit for each row.\nconst lines = rows.map(row => {\n  const quantity = number(row[FIELD.quantity]);\n  const price = number(row[FIELD.price]);\n  const discount = number(row[FIELD.discount]);\n\n  if (discount < 0 || discount > 100) {\n    throw new Error('Discount must be between 0 and 100%.');\n  }\n\n  const revenue = quantity * price * (1 - discount / 100);\n\n  const hasCost =\n    row[FIELD.cost] !== null &&\n    row[FIELD.cost] !== undefined &&\n    row[FIELD.cost] !== '';\n\n  const cost = hasCost\n    ? quantity * number(row[FIELD.cost])\n    : null;\n\n  const date = new Date(row[FIELD.date]);\n\n  return {\n    ...row,\n    _date: date,\n    _revenue: revenue,\n    _cost: cost,\n    _profit: cost === null ? null : revenue - cost,\n  };\n});\n\n// Keep the current and previous seven-day windows separate.\nconst current = lines.filter(row =>\n  !isNaN(row._date.getTime()) &&\n  row._date >= currentStart &&\n  row._date <= now\n);\n\nconst previous = lines.filter(row =>\n  !isNaN(row._date.getTime()) &&\n  row._date >= previousStart &&\n  row._date < currentStart\n);\n\nfunction summarize(periodRows) {\n  const revenue = periodRows.reduce(\n    (sum, row) => sum + row._revenue, 0\n  );\n\n  const orderIds = new Set(\n    periodRows\n      .map(row => row[FIELD.orderId])\n      .filter(id => id !== null && id !== undefined && id !== '')\n      .map(String)\n  );\n\n  const knownCostRows = periodRows.filter(\n    row => row._cost !== null\n  );\n\n  const cost = knownCostRows.reduce(\n    (sum, row) => sum + row._cost, 0\n  );\n\n  const profit = knownCostRows.length\n    ? knownCostRows.reduce((sum, row) => sum + row._profit, 0)\n    : null;\n\n  return {\n    revenue: money(revenue),\n    orders: orderIds.size,\n    averageOrderValue: orderIds.size\n      ? money(revenue / orderIds.size)\n      : 0,\n    costOfGoodsSold: knownCostRows.length\n      ? money(cost)\n      : null,\n    grossProfit: profit === null ? null : money(profit),\n    grossMarginPct: profit === null || revenue === 0\n      ? null\n      : money((profit / revenue) * 100),\n    lineItems: periodRows.length,\n    units: periodRows.reduce((sum, row) => sum + number(row[FIELD.quantity]), 0),\n  };\n}\n\nconst currentSummary = summarize(current);\nconst previousSummary = summarize(previous);\n\n// Calculate percentage growth against the previous period.\nconst revenueChangePct = previousSummary.revenue !== 0\n  ? money(\n      ((currentSummary.revenue - previousSummary.revenue) /\n        previousSummary.revenue) * 100\n    )\n  : null;\n\n// Rank products by discounted revenue in the current period.\nconst products = {};\n\nfor (const row of current) {\n  const name = row[FIELD.product] ?? 'Unknown product';\n\n  if (!products[name]) {\n    products[name] = { product: name, quantitySold: 0, revenue: 0 };\n  }\n\n  products[name].quantitySold += number(row[FIELD.quantity]);\n  products[name].revenue += row._revenue;\n}\n\nconst topProducts = Object.values(products)\n  .map(product => ({\n    ...product,\n    revenue: money(product.revenue),\n  }))\n  .sort((a, b) => b.revenue - a.revenue)\n  .slice(0, 5);\n\n// Return one structured output item.\nreturn [{\n  json: {\n    generatedAt: now.toISOString(),\n    periods: {\n      current: {\n        start: currentStart.toISOString(),\n        end: now.toISOString(),\n        ...currentSummary,\n      },\n      previous: {\n        start: previousStart.toISOString(),\n        end: currentStart.toISOString(),\n        ...previousSummary,\n      },\n    },\n    revenueChangePct,\n    topProducts,\n  },\n}];\n"
+      },
+      "id": "77351352-531c-494e-9518-b22257a2f5cb",
+      "name": "Code in JavaScript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1008,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5420b7d7-9954-44dc-af05-ab37622e2c11",
+              "leftValue": "={{ Number($json.revenueChangePct) }}",
+              "rightValue": -20,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7dafd700-d74c-48c1-bdf6-46f0e740a95e",
+      "name": "If1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -784,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ role: \"user\", parts: [{ text: \"You are a retail sales analyst for \" + ($(\"Edit Fields\").first().json.businessName || \"our business\") + \". Using the data below (currency: \" + ($(\"Edit Fields\").first().json.currency || \"KES\") + \"), write a concise weekly sales ALERT report (revenue dropped more than 20% vs the previous period): key figures, revenue change vs the previous period, top products, and 3 actionable recommendations. Format the answer as a clean HTML email body only: use <h2>, <h3>, <p>, <ul>/<li>, <strong> and a <table> with inline border styles for the key figures. Do NOT use Markdown, do NOT wrap the answer in code fences, and do NOT include <html>, <head> or <body> tags.\\n\\n\" + JSON.stringify($json, null, 2) }] }] }) }}",
+        "options": {}
+      },
+      "id": "950e70d0-09dd-4105-91af-bbb86d508dc0",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -560,
+        -48
+      ],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YAdYlmW83IqhckfS",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $(\"Edit Fields\").first().json.reportEmail }}",
+        "subject": "=ALERT: {{ $(\"Edit Fields\").first().json.businessName }} revenue down {{ Math.abs($(\"Code in JavaScript\").first().json.revenueChangePct) }}% - Sales Report ({{ $now.minus({ days: 7 }).toFormat(\"d LLL\") }} to {{ $now.toFormat(\"d LLL yyyy\") }})",
+        "message": "={{ (($json.candidates && $json.candidates[0] && $json.candidates[0].content.parts.map(p => p.text || \"\").join(\"\")) || \"<p>No report text was returned by Gemini.</p>\").replace(/^\\s*```(?:html)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\") }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "82b29755-01e1-4d84-972f-85948aa68696",
+      "name": "Send Report Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -336,
+        -48
+      ],
+      "webhookId": "33e0acdd-1594-4267-b7aa-f37149a500c2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9MJX8ahvUvInShMW",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s",
+          "mode": "list",
+          "cachedResultName": "sample_sales",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1297286182,
+          "mode": "list",
+          "cachedResultName": "Reports",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s/edit#gid=1297286182"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "report_date": "={{ $now.toFormat(\"yyyy-LL-dd\") }}",
+            "period": "={{ DateTime.fromISO($(\"Code in JavaScript\").first().json.periods.current.start).toFormat(\"yyyy-LL-dd\") }} to {{ DateTime.fromISO($(\"Code in JavaScript\").first().json.periods.current.end).toFormat(\"yyyy-LL-dd\") }}",
+            "revenue": "={{ $(\"Code in JavaScript\").first().json.periods.current.revenue }}",
+            "orders": "={{ $(\"Code in JavaScript\").first().json.periods.current.orders }}",
+            "units": "={{ $(\"Code in JavaScript\").first().json.periods.current.units }}",
+            "aov": "={{ $(\"Code in JavaScript\").first().json.periods.current.averageOrderValue }}",
+            "margin_pct": "={{ $(\"Code in JavaScript\").first().json.periods.current.grossMarginPct }}",
+            "revenue_change_pct": "={{ $(\"Code in JavaScript\").first().json.revenueChangePct }}",
+            "top_product": "={{ ($(\"Code in JavaScript\").first().json.topProducts[0] || {}).product || \"\" }}",
+            "alert": "Revenue dropped more than 20%"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "report_date",
+              "displayName": "report_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "period",
+              "displayName": "period",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "revenue",
+              "displayName": "revenue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "orders",
+              "displayName": "orders",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "units",
+              "displayName": "units",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "aov",
+              "displayName": "aov",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "margin_pct",
+              "displayName": "margin_pct",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "revenue_change_pct",
+              "displayName": "revenue_change_pct",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "top_product",
+              "displayName": "top_product",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "alert",
+              "displayName": "alert",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "7561d7a7-99e0-4131-9d7b-fb097476eacb",
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -112,
+        -48
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "daysInterval": 7,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "772aed6e-9b9a-4eea-8cbd-856e94f78e3c",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1904,
+        48
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Summarize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Send Report Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Report Email": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "DxCYN4maX9brRQlA",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "85d0a01d-9be2-4207-930b-bc046da745d6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "207794e093b5b58253c69159858e80eecdc864e7fe70a2e8c01f1d11952c1493"
+  },
+  "nodeGroups": [],
+  "id": "G3CIZhRZhCPHiGHA",
+  "tags": []
+}

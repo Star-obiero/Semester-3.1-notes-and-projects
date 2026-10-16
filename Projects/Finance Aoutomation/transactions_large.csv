@@ -1,0 +1,283 @@
+Date,Description,Category,Type,Amount (KES)
+2026-07-01,Product sales,Sales,Income,2850
+2026-07-01,Product sales,Sales,Income,3000
+2026-07-02,Product sales,Sales,Income,4050
+2026-07-02,Product sales,Sales,Income,4100
+2026-07-02,Transport,Transport,Expense,350
+2026-07-02,Shop rent,Rent,Expense,5000
+2026-07-03,Product sales,Sales,Income,3150
+2026-07-03,Product sales,Sales,Income,3300
+2026-07-04,Product sales,Sales,Income,4850
+2026-07-04,Product sales,Sales,Income,3150
+2026-07-04,Product sales,Sales,Income,4900
+2026-07-05,Internet bill,Utilities,Expense,1200
+2026-07-06,Product sales,Sales,Income,4750
+2026-07-06,Product sales,Sales,Income,3250
+2026-07-06,Stock purchase,Inventory,Expense,12450
+2026-07-07,Product sales,Sales,Income,4350
+2026-07-07,Product sales,Sales,Income,1850
+2026-07-07,Transport,Transport,Expense,800
+2026-07-08,Product sales,Sales,Income,3850
+2026-07-08,Product sales,Sales,Income,3950
+2026-07-09,Product sales,Sales,Income,4550
+2026-07-09,Product sales,Sales,Income,3550
+2026-07-09,Transport,Transport,Expense,450
+2026-07-09,Staff wages,Salaries,Expense,6000
+2026-07-10,Product sales,Sales,Income,3250
+2026-07-10,Product sales,Sales,Income,4450
+2026-07-11,Product sales,Sales,Income,4900
+2026-07-11,Product sales,Sales,Income,4500
+2026-07-11,Product sales,Sales,Income,4050
+2026-07-11,Packaging,Supplies,Expense,750
+2026-07-12,Product sales,Sales,Income,1850
+2026-07-12,Electricity,Utilities,Expense,1650
+2026-07-13,Product sales,Sales,Income,3850
+2026-07-13,Product sales,Sales,Income,4150
+2026-07-13,Stock purchase,Inventory,Expense,15200
+2026-07-14,Product sales,Sales,Income,4250
+2026-07-14,Product sales,Sales,Income,1550
+2026-07-14,Transport,Transport,Expense,750
+2026-07-15,Product sales,Sales,Income,3600
+2026-07-15,Product sales,Sales,Income,2750
+2026-07-16,Product sales,Sales,Income,3700
+2026-07-16,Product sales,Sales,Income,3250
+2026-07-16,Transport,Transport,Expense,600
+2026-07-17,Product sales,Sales,Income,2850
+2026-07-17,Product sales,Sales,Income,3000
+2026-07-18,Product sales,Sales,Income,4300
+2026-07-18,Product sales,Sales,Income,2950
+2026-07-18,Product sales,Sales,Income,5650
+2026-07-18,Water bill,Utilities,Expense,450
+2026-07-19,Product sales,Sales,Income,2400
+2026-07-20,Product sales,Sales,Income,3950
+2026-07-20,Product sales,Sales,Income,3050
+2026-07-20,Stock purchase,Inventory,Expense,11150
+2026-07-20,Shop repairs,Maintenance,Expense,800
+2026-07-21,Product sales,Sales,Income,2900
+2026-07-21,Product sales,Sales,Income,1650
+2026-07-21,Transport,Transport,Expense,700
+2026-07-22,Product sales,Sales,Income,5150
+2026-07-22,Product sales,Sales,Income,1800
+2026-07-23,Product sales,Sales,Income,4350
+2026-07-23,Product sales,Sales,Income,2900
+2026-07-23,Transport,Transport,Expense,600
+2026-07-24,Product sales,Sales,Income,3200
+2026-07-24,Product sales,Sales,Income,4150
+2026-07-24,Staff wages,Salaries,Expense,6000
+2026-07-25,Product sales,Sales,Income,3850
+2026-07-25,Product sales,Sales,Income,2900
+2026-07-25,Product sales,Sales,Income,5700
+2026-07-26,Packaging,Supplies,Expense,1150
+2026-07-27,Product sales,Sales,Income,4200
+2026-07-27,Product sales,Sales,Income,3500
+2026-07-27,Stock purchase,Inventory,Expense,12850
+2026-07-28,Product sales,Sales,Income,4900
+2026-07-28,Product sales,Sales,Income,3000
+2026-07-28,Transport,Transport,Expense,600
+2026-07-29,Product sales,Sales,Income,5150
+2026-07-29,Product sales,Sales,Income,2800
+2026-07-30,Product sales,Sales,Income,3400
+2026-07-30,Product sales,Sales,Income,2300
+2026-07-30,Transport,Transport,Expense,300
+2026-07-31,Product sales,Sales,Income,4450
+2026-07-31,Product sales,Sales,Income,3300
+2026-07-31,Transport,Transport,Expense,600
+2026-08-01,Product sales,Sales,Income,3950
+2026-08-01,Product sales,Sales,Income,4250
+2026-08-01,Product sales,Sales,Income,3050
+2026-08-02,Product sales,Sales,Income,1750
+2026-08-02,Shop rent,Rent,Expense,5000
+2026-08-03,Product sales,Sales,Income,5000
+2026-08-03,Product sales,Sales,Income,3900
+2026-08-03,Stock purchase,Inventory,Expense,14350
+2026-08-04,Product sales,Sales,Income,5200
+2026-08-04,Product sales,Sales,Income,4000
+2026-08-04,Transport,Transport,Expense,500
+2026-08-05,Product sales,Sales,Income,5250
+2026-08-05,Product sales,Sales,Income,1800
+2026-08-05,Internet bill,Utilities,Expense,1200
+2026-08-06,Product sales,Sales,Income,4550
+2026-08-06,Product sales,Sales,Income,3850
+2026-08-06,Transport,Transport,Expense,600
+2026-08-07,Product sales,Sales,Income,3850
+2026-08-07,Product sales,Sales,Income,4400
+2026-08-08,Product sales,Sales,Income,5050
+2026-08-08,Product sales,Sales,Income,2950
+2026-08-08,Product sales,Sales,Income,2250
+2026-08-09,Product sales,Sales,Income,1750
+2026-08-09,Staff wages,Salaries,Expense,6000
+2026-08-10,Product sales,Sales,Income,2800
+2026-08-10,Product sales,Sales,Income,3750
+2026-08-10,Stock purchase,Inventory,Expense,13450
+2026-08-11,Product sales,Sales,Income,3850
+2026-08-11,Product sales,Sales,Income,1550
+2026-08-11,Transport,Transport,Expense,300
+2026-08-11,Packaging,Supplies,Expense,1150
+2026-08-12,Product sales,Sales,Income,5300
+2026-08-12,Product sales,Sales,Income,1750
+2026-08-12,Electricity,Utilities,Expense,2050
+2026-08-13,Product sales,Sales,Income,3250
+2026-08-13,Product sales,Sales,Income,3350
+2026-08-13,Transport,Transport,Expense,750
+2026-08-14,Product sales,Sales,Income,5350
+2026-08-14,Product sales,Sales,Income,3500
+2026-08-15,Product sales,Sales,Income,2950
+2026-08-15,Product sales,Sales,Income,2450
+2026-08-15,Product sales,Sales,Income,4350
+2026-08-17,Product sales,Sales,Income,5350
+2026-08-17,Product sales,Sales,Income,3000
+2026-08-17,Stock purchase,Inventory,Expense,15300
+2026-08-18,Product sales,Sales,Income,2900
+2026-08-18,Product sales,Sales,Income,2150
+2026-08-18,Transport,Transport,Expense,650
+2026-08-18,Water bill,Utilities,Expense,650
+2026-08-19,Product sales,Sales,Income,5150
+2026-08-19,Product sales,Sales,Income,3000
+2026-08-20,Product sales,Sales,Income,2750
+2026-08-20,Product sales,Sales,Income,3500
+2026-08-20,Transport,Transport,Expense,850
+2026-08-20,Shop repairs,Maintenance,Expense,1500
+2026-08-21,Product sales,Sales,Income,5250
+2026-08-21,Product sales,Sales,Income,2400
+2026-08-21,Transport,Transport,Expense,800
+2026-08-22,Product sales,Sales,Income,4050
+2026-08-22,Product sales,Sales,Income,2100
+2026-08-22,Product sales,Sales,Income,2050
+2026-08-23,Product sales,Sales,Income,2350
+2026-08-24,Product sales,Sales,Income,2650
+2026-08-24,Product sales,Sales,Income,2550
+2026-08-24,Stock purchase,Inventory,Expense,13100
+2026-08-24,Staff wages,Salaries,Expense,6000
+2026-08-25,Product sales,Sales,Income,4800
+2026-08-25,Product sales,Sales,Income,1600
+2026-08-25,Transport,Transport,Expense,600
+2026-08-26,Product sales,Sales,Income,3500
+2026-08-26,Product sales,Sales,Income,2400
+2026-08-26,Packaging,Supplies,Expense,950
+2026-08-27,Product sales,Sales,Income,2850
+2026-08-27,Product sales,Sales,Income,4350
+2026-08-27,Transport,Transport,Expense,650
+2026-08-28,Product sales,Sales,Income,4900
+2026-08-28,Product sales,Sales,Income,1950
+2026-08-29,Product sales,Sales,Income,3800
+2026-08-29,Product sales,Sales,Income,2500
+2026-08-29,Product sales,Sales,Income,4400
+2026-08-31,Product sales,Sales,Income,2700
+2026-08-31,Product sales,Sales,Income,2700
+2026-08-31,Stock purchase,Inventory,Expense,12150
+2026-09-01,Product sales,Sales,Income,5250
+2026-09-01,Product sales,Sales,Income,1650
+2026-09-01,Transport,Transport,Expense,650
+2026-09-02,Product sales,Sales,Income,5000
+2026-09-02,Product sales,Sales,Income,2850
+2026-09-02,Shop rent,Rent,Expense,5000
+2026-09-03,Product sales,Sales,Income,4750
+2026-09-03,Product sales,Sales,Income,2050
+2026-09-03,Transport,Transport,Expense,750
+2026-09-04,Product sales,Sales,Income,5150
+2026-09-04,Product sales,Sales,Income,1900
+2026-09-05,Product sales,Sales,Income,4850
+2026-09-05,Product sales,Sales,Income,3050
+2026-09-05,Product sales,Sales,Income,5850
+2026-09-05,Internet bill,Utilities,Expense,1200
+2026-09-06,Product sales,Sales,Income,2250
+2026-09-07,Product sales,Sales,Income,3650
+2026-09-07,Product sales,Sales,Income,2800
+2026-09-07,Stock purchase,Inventory,Expense,13500
+2026-09-08,Product sales,Sales,Income,2750
+2026-09-08,Product sales,Sales,Income,2400
+2026-09-08,Transport,Transport,Expense,500
+2026-09-09,Product sales,Sales,Income,3300
+2026-09-09,Product sales,Sales,Income,3000
+2026-09-09,Staff wages,Salaries,Expense,6000
+2026-09-10,Product sales,Sales,Income,4850
+2026-09-10,Product sales,Sales,Income,2750
+2026-09-10,Transport,Transport,Expense,600
+2026-09-11,Product sales,Sales,Income,3500
+2026-09-11,Product sales,Sales,Income,2950
+2026-09-11,Transport,Transport,Expense,800
+2026-09-11,Packaging,Supplies,Expense,1350
+2026-09-12,Product sales,Sales,Income,4950
+2026-09-12,Product sales,Sales,Income,4050
+2026-09-12,Product sales,Sales,Income,2950
+2026-09-12,Electricity,Utilities,Expense,2150
+2026-09-14,Product sales,Sales,Income,4450
+2026-09-14,Product sales,Sales,Income,2700
+2026-09-14,Stock purchase,Inventory,Expense,15700
+2026-09-15,Product sales,Sales,Income,5050
+2026-09-15,Product sales,Sales,Income,3500
+2026-09-15,Transport,Transport,Expense,900
+2026-09-16,Product sales,Sales,Income,3550
+2026-09-16,Product sales,Sales,Income,1950
+2026-09-17,Product sales,Sales,Income,4200
+2026-09-17,Product sales,Sales,Income,3200
+2026-09-17,Transport,Transport,Expense,600
+2026-09-18,Product sales,Sales,Income,2850
+2026-09-18,Product sales,Sales,Income,3650
+2026-09-18,Water bill,Utilities,Expense,500
+2026-09-19,Product sales,Sales,Income,3150
+2026-09-19,Product sales,Sales,Income,2400
+2026-09-19,Product sales,Sales,Income,3050
+2026-09-20,Product sales,Sales,Income,1150
+2026-09-20,Shop repairs,Maintenance,Expense,850
+2026-09-21,Product sales,Sales,Income,5350
+2026-09-21,Product sales,Sales,Income,2000
+2026-09-21,Stock purchase,Inventory,Expense,15100
+2026-09-22,Product sales,Sales,Income,4800
+2026-09-22,Product sales,Sales,Income,3650
+2026-09-22,Transport,Transport,Expense,400
+2026-09-23,Product sales,Sales,Income,4400
+2026-09-23,Product sales,Sales,Income,3000
+2026-09-24,Product sales,Sales,Income,3350
+2026-09-24,Product sales,Sales,Income,4000
+2026-09-24,Transport,Transport,Expense,450
+2026-09-24,Staff wages,Salaries,Expense,6000
+2026-09-25,Product sales,Sales,Income,3450
+2026-09-25,Product sales,Sales,Income,2300
+2026-09-25,Transport,Transport,Expense,550
+2026-09-26,Product sales,Sales,Income,5200
+2026-09-26,Product sales,Sales,Income,3850
+2026-09-26,Product sales,Sales,Income,3650
+2026-09-26,Packaging,Supplies,Expense,700
+2026-09-27,Product sales,Sales,Income,1050
+2026-09-28,Product sales,Sales,Income,2850
+2026-09-28,Product sales,Sales,Income,3550
+2026-09-28,Stock purchase,Inventory,Expense,14450
+2026-09-29,Product sales,Sales,Income,5300
+2026-09-29,Product sales,Sales,Income,2550
+2026-09-29,Transport,Transport,Expense,750
+2026-09-30,Product sales,Sales,Income,4300
+2026-09-30,Product sales,Sales,Income,3450
+2026-10-01,Product sales,Sales,Income,4350
+2026-10-01,Product sales,Sales,Income,4250
+2026-10-01,Transport,Transport,Expense,500
+2026-10-02,Product sales,Sales,Income,3150
+2026-10-02,Product sales,Sales,Income,2900
+2026-10-02,Shop rent,Rent,Expense,5000
+2026-10-03,Product sales,Sales,Income,5150
+2026-10-03,Product sales,Sales,Income,3550
+2026-10-03,Product sales,Sales,Income,5450
+2026-10-05,Product sales,Sales,Income,5250
+2026-10-05,Product sales,Sales,Income,2650
+2026-10-05,Stock purchase,Inventory,Expense,16700
+2026-10-05,Internet bill,Utilities,Expense,1200
+2026-10-06,Product sales,Sales,Income,3550
+2026-10-06,Product sales,Sales,Income,3700
+2026-10-06,Transport,Transport,Expense,550
+2026-10-07,Product sales,Sales,Income,2550
+2026-10-07,Product sales,Sales,Income,3600
+2026-10-08,Product sales,Sales,Income,3350
+2026-10-08,Product sales,Sales,Income,4350
+2026-10-08,Transport,Transport,Expense,800
+2026-10-09,Product sales,Sales,Income,2850
+2026-10-09,Product sales,Sales,Income,3800
+2026-10-09,Transport,Transport,Expense,850
+2026-10-09,Staff wages,Salaries,Expense,6000
+2026-10-10,Product sales,Sales,Income,4150
+2026-10-10,Product sales,Sales,Income,2550
+2026-10-10,Product sales,Sales,Income,4250
+2026-10-11,Packaging,Supplies,Expense,800
+2026-10-12,Product sales,Sales,Income,4350
+2026-10-12,Product sales,Sales,Income,1850
+2026-10-12,Stock purchase,Inventory,Expense,11750
+2026-10-12,Electricity,Utilities,Expense,1700

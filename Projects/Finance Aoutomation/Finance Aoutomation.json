@@ -1,0 +1,378 @@
+{
+  "name": "Finance Aoutomation",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "ffab2191-5e26-47a1-b624-5310b2218392",
+      "name": "When clicking ‘Execute workflow’",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1bfgUvysripj-_h3E_IusGvxtcfEZpPXr2UIE5LrxiZ8",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "transactions_large",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "dca260ab-b04e-4990-9724-dc51e786dd87",
+      "name": "Read Transactions",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        128,
+        112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\n\nconst rows = $input.all().map(i => i.json);\n\nconst issues = [];\nconst validRows = [];\n\n// BLOCK 1: Read, clean and validate\nfor (let index = 0; index < rows.length; index++) {\n  const row = rows[index];\n  const rowNumber = index + 1;\n\n  const rawAmount = row[\"Amount (KES)\"] ?? row.Amount;\n  const amount = parseFloat(\n    String(rawAmount ?? \"\").replace(/[^0-9.\\-]/g, \"\")\n  );\n\n  const type = String(row.Type ?? \"\").trim().toLowerCase();\n  const dateText = String(row.Date ?? \"\").trim();\n  const description = String(row.Description ?? \"\").trim();\n  const categoryText = String(row.Category ?? \"\").trim();\n\n  const parsedDate = new Date(dateText);\n  const dateIsValid =\n    dateText !== \"\" && !Number.isNaN(parsedDate.getTime());\n\n  const rowIssues = [];\n\n  if (rawAmount === undefined || rawAmount === null ||\n      String(rawAmount).trim() === \"\" || !Number.isFinite(amount)) {\n    rowIssues.push(\"Invalid Amount\");\n  }\n\n  if (![\"income\", \"expense\"].includes(type)) {\n    rowIssues.push(\"Type must be income or expense\");\n  }\n\n  if (!dateIsValid) {\n    rowIssues.push(\"Invalid Date\");\n  }\n\n  if (rowIssues.length > 0) {\n    issues.push({\n      rowNumber,\n      description,\n      problems: rowIssues\n    });\n    continue;\n  }\n\n  // BLOCK 2: Auto-categorize if Category is empty\n  let category = categoryText;\n\n  if (!category) {\n    const text = description.toLowerCase();\n\n    const rules = [\n      [/\\brent\\b|\\blease\\b/, \"Rent\"],\n      [/\\bwage\\b|\\bsalary\\b|\\bpayroll\\b/, \"Salaries\"],\n      [/\\bfood\\b|\\bgrocer(?:y|ies)\\b|\\bsupermarket\\b/, \"Food\"],\n      [/\\btransport\\b|\\bfuel\\b|\\btaxi\\b|\\bbus fare\\b/, \"Transport\"],\n      [/\\belectricity\\b|\\bwater bill\\b|\\binternet\\b|\\butility\\b/, \"Utilities\"],\n      [/\\bschool\\b|\\btuition\\b|\\bcourse fee\\b/, \"Education\"],\n      [/\\bmedical\\b|\\bhospital\\b|\\bpharmacy\\b|\\bmedicine\\b/, \"Healthcare\"],\n      [/\\bsale\\b|\\bsales\\b|\\bclient payment\\b/, \"Sales\"],\n      [/\\binterest\\b|\\bdividend\\b|\\binvestment return\\b/, \"Investment Income\"]\n    ];\n\n    const match = rules.find(([pattern]) => pattern.test(text));\n    category = match ? match[1] : \"Other\";\n  }\n\n  validRows.push({\n    rowNumber,\n    date: parsedDate.toISOString().slice(0, 10),\n    month: parsedDate.toISOString().slice(0, 7),\n    type,\n    amount,\n    description,\n    category\n  });\n}\n\n// BLOCK 3: Calculate totals\nconst incomeRows = validRows.filter(r => r.type === \"income\");\nconst expenseRows = validRows.filter(r => r.type === \"expense\");\n\nconst totalIncome = incomeRows.reduce((sum, r) => sum + r.amount, 0);\nconst totalExpenses = expenseRows.reduce((sum, r) => sum + r.amount, 0);\nconst netSavings = totalIncome - totalExpenses;\n\nconst savingsRate = totalIncome !== 0\n  ? (netSavings / totalIncome) * 100\n  : null;\n\n// BLOCK 4A: Expenses grouped by category\nconst categoryTotals = {};\n\nfor (const row of expenseRows) {\n  categoryTotals[row.category] =\n    (categoryTotals[row.category] || 0) + row.amount;\n}\n\nconst expenseCategories = Object.entries(categoryTotals)\n  .map(([name, amount]) => ({\n    name,\n    amount: Number(amount.toFixed(2)),\n    pct: totalExpenses !== 0\n      ? Number(((amount / totalExpenses) * 100).toFixed(2))\n      : 0\n  }))\n  .sort((a, b) => b.amount - a.amount);\n\n// BLOCK 4B: Daily income, expenses and cumulative savings\nconst dailyTotals = {};\n\nfor (const row of validRows) {\n  if (!dailyTotals[row.date]) {\n    dailyTotals[row.date] = { date: row.date, income: 0, expenses: 0 };\n  }\n\n  if (row.type === \"income\") {\n    dailyTotals[row.date].income += row.amount;\n  } else {\n    dailyTotals[row.date].expenses += row.amount;\n  }\n}\n\nlet runningSavings = 0;\n\nconst dailySeries = Object.values(dailyTotals)\n  .sort((a, b) => a.date.localeCompare(b.date))\n  .map(day => {\n    day.income = Number(day.income.toFixed(2));\n    day.expenses = Number(day.expenses.toFixed(2));\n    runningSavings += day.income - day.expenses;\n\n    return {\n      ...day,\n      cumulativeSavings: Number(runningSavings.toFixed(2))\n    };\n  });\n\n// BLOCK 4C: Biggest single expense\nconst biggestExpense = expenseRows.length\n  ? expenseRows.reduce((biggest, row) =>\n      row.amount > biggest.amount ? row : biggest\n    )\n  : null;\n\n// BLOCK 4D: Month-over-month comparison\nconst monthlyTotals = {};\n\nfor (const row of validRows) {\n  if (!monthlyTotals[row.month]) {\n    monthlyTotals[row.month] = { month: row.month, income: 0, expenses: 0 };\n  }\n\n  if (row.type === \"income\") {\n    monthlyTotals[row.month].income += row.amount;\n  } else {\n    monthlyTotals[row.month].expenses += row.amount;\n  }\n}\n\nconst monthlySeries = Object.values(monthlyTotals)\n  .sort((a, b) => a.month.localeCompare(b.month));\n\nconst latestMonth = monthlySeries.length\n  ? monthlySeries[monthlySeries.length - 1]\n  : null;\n\nconst previousMonth = monthlySeries.length >= 2\n  ? monthlySeries[monthlySeries.length - 2]\n  : null;\n\nfunction percentChange(current, previous) {\n  if (previous === 0) return current === 0 ? 0 : null;\n  return Number((((current - previous) / Math.abs(previous)) * 100).toFixed(2));\n}\n\nconst monthOverMonth = latestMonth\n  ? {\n      latestMonth: latestMonth.month,\n      previousMonth: previousMonth?.month ?? null,\n      incomeChangePct: previousMonth\n        ? percentChange(latestMonth.income, previousMonth.income)\n        : null,\n      expensesChangePct: previousMonth\n        ? percentChange(latestMonth.expenses, previousMonth.expenses)\n        : null,\n      savingsChangePct: previousMonth\n        ? percentChange(\n            latestMonth.income - latestMonth.expenses,\n            previousMonth.income - previousMonth.expenses\n          )\n        : null\n    }\n  : null;\n\nconst chartColors = {\n  pink: \"#E0B4AE\",\n  peach: \"#F2CC9E\",\n  teal: \"#BCD5D8\"\n};\n\n// CHART 1: Daily income vs expenses\nconst incomeExpenseConfig = {\n  type: \"bar\",\n  data: {\n    labels: dailySeries.map(d => d.date),\n    datasets: [\n      {\n        label: \"Income\",\n        data: dailySeries.map(d => d.income),\n        backgroundColor: chartColors.pink\n      },\n      {\n        label: \"Expenses\",\n        data: dailySeries.map(d => d.expenses),\n        backgroundColor: chartColors.peach\n      }\n    ]\n  },\n  options: {\n    title: {\n      display: true,\n      text: \"Daily Income vs Expenses\"\n    },\n    legend: {\n      position: \"top\"\n    },\n    scales: {\n      yAxes: [{\n        ticks: { beginAtZero: true }\n      }]\n    }\n  }\n};\n\n// CHART 2: Expense category breakdown\nconst expenseCategoryConfig = {\n  type: \"doughnut\",\n  data: {\n    labels: expenseCategories.map(\n      c => `${c.name} (${c.pct}%)`\n    ),\n    datasets: [{\n      data: expenseCategories.map(c => c.amount),\n      backgroundColor: expenseCategories.map(\n        (_, i) => [\n          chartColors.pink,\n          chartColors.peach,\n          chartColors.teal\n        ][i % 3]\n      )\n    }]\n  },\n  options: {\n    title: {\n      display: true,\n      text: \"Expense Breakdown by Category\"\n    },\n    legend: {\n      position: \"right\"\n    }\n  }\n};\n\n// CHART 3: Cumulative savings\nconst cumulativeSavingsConfig = {\n  type: \"bar\",\n  data: {\n    labels: dailySeries.map(d => d.date),\n    datasets: [{\n      label: \"Cumulative Savings\",\n      data: dailySeries.map(d => d.cumulativeSavings),\n      backgroundColor: chartColors.teal\n    }]\n  },\n  options: {\n    title: {\n      display: true,\n      text: \"Cumulative Savings Over Time\"\n    },\n    legend: {\n      display: true\n    },\n    scales: {\n      yAxes: [{\n        ticks: {\n          beginAtZero: true\n        }\n      }]\n    }\n  }\n};\n\n// Convert each Chart.js configuration to a QuickChart URL\nfunction makeChartUrl(config) {\n  return \"https://quickchart.io/chart?w=640&h=340&bkg=white&c=\"\n    + encodeURIComponent(JSON.stringify(config));\n}\n\nconst chartUrls = {\n  incomeVsExpenses: makeChartUrl(incomeExpenseConfig),\n  expenseBreakdown: makeChartUrl(expenseCategoryConfig),\n  cumulativeSavings: makeChartUrl(cumulativeSavingsConfig)\n};\n\nconst financialSummary = {\n  totalIncome,\n  totalExpenses,\n  netSavings,\n  savingsRate:\n    savingsRate === null\n      ? null\n      : Number(savingsRate.toFixed(2)),\n  expenseCategories,\n  biggestExpense,\n  monthOverMonth\n};\n\nconst aiPrompt = `\nYou are a helpful personal finance analyst.\n\nUse ONLY the numbers and information in the JSON below.\nDo not invent figures, causes, transactions, or financial facts.\nIf a value is missing or null, say it is unavailable rather than guessing.\nWrite for a non-accountant using clear, simple language.\nKeep the entire response under approximately 180 words.\n\nReturn the explanation using exactly these sections:\n\nSummary\nBriefly explain total income, total expenses, net savings,\nand savings rate where available.\n\nWhere the money went\nIdentify the largest expense categories using the supplied\ncategory amounts and percentages. Mention the biggest single\nexpense if that information is available.\n\n3 Recommended actions\nGive exactly three practical, specific actions supported by\nthe supplied numbers. Do not make assumptions about the user's\ncircumstances.\n\nFinancial data:\n${JSON.stringify(financialSummary, null, 2)}\n`;\n\nreturn [{\n  json: {\n    rowCount: rows.length,\n    chartUrls,\n    aiPrompt,\n    validRowCount: validRows.length,\n    invalidRowCount: issues.length,\n    issues,\n    totalIncome: Number(totalIncome.toFixed(2)),\n    totalExpenses: Number(totalExpenses.toFixed(2)),\n    netSavings: Number(netSavings.toFixed(2)),\n    savingsRate: savingsRate === null ? null : Number(savingsRate.toFixed(2)),\n    expenseCategories,\n    dailySeries,\n    biggestExpense: biggestExpense\n      ? {\n          date: biggestExpense.date,\n          description: biggestExpense.description,\n          category: biggestExpense.category,\n          amount: biggestExpense.amount\n        }\n      : null,\n    monthlySeries,\n    monthOverMonth\n  }\n}];\n"
+      },
+      "id": "b6085187-b395-4b5c-8d05-39e0e1a3a053",
+      "name": "Calculate Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [ { parts: [ { text: $json.aiPrompt } ] } ] }) }}",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "9dcc7d81-85e8-48b0-8194-14b0b00e5013",
+      "name": "Geminin Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        576,
+        112
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YAdYlmW83IqhckfS",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\n\nconst metrics = $('Calculate Metrics').first().json;\nconst gemini = $input.first().json;\n\n// ---------- Helpers ----------\nfunction escapeHtml(value) {\n  return String(value ?? \"\")\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\")\n    .replace(/\"/g, \"&quot;\")\n    .replace(/'/g, \"&#39;\");\n}\n\nfunction money(value) {\n  if (value === null || value === undefined || value === \"\") {\n    return \"N/A\";\n  }\n\n  return \"KES \" + Number(value).toLocaleString(\"en-KE\", {\n    minimumFractionDigits: 2,\n    maximumFractionDigits: 2\n  });\n}\n\nfunction safeImageUrl(url) {\n  return typeof url === \"string\" && /^https:\\/\\/quickchart\\.io\\//i.test(url)\n    ? escapeHtml(url)\n    : \"\";\n}\n\n// ---------- Get Gemini's explanation ----------\nconst aiText =\n  gemini.candidates?.[0]?.content?.parts\n    ?.map(part => part.text || \"\")\n    .join(\"\\n\")\n  || \"The AI explanation is unavailable. Please check the Gemini Analysis node.\";\n\n// Convert simple Markdown into email-safe HTML.\nfunction markdownToHtml(text) {\n  const lines = text.split(/\\r?\\n/);\n  const output = [];\n  let inList = false;\n\n  function closeList() {\n    if (inList) {\n      output.push(\"</ul>\");\n      inList = false;\n    }\n  }\n\n  for (const line of lines) {\n    const trimmed = line.trim();\n\n    if (!trimmed) {\n      closeList();\n      continue;\n    }\n\n    if (trimmed.startsWith(\"## \")) {\n      closeList();\n      output.push(\n        `<h3 style=\"color:#334155;font-size:17px;margin:18px 0 8px;\">${escapeHtml(trimmed.slice(3))}</h3>`\n      );\n    } else if (trimmed.startsWith(\"# \")) {\n      closeList();\n      output.push(\n        `<h3 style=\"color:#334155;font-size:17px;margin:18px 0 8px;\">${escapeHtml(trimmed.slice(2))}</h3>`\n      );\n    } else if (trimmed.startsWith(\"- \") || trimmed.startsWith(\"* \")) {\n      if (!inList) {\n        output.push(\n          '<ul style=\"padding-left:22px;margin:8px 0;line-height:1.6;\">'\n        );\n        inList = true;\n      }\n\n      output.push(`<li>${escapeHtml(trimmed.slice(2))}</li>`);\n    } else {\n      closeList();\n      output.push(\n        `<p style=\"margin:8px 0;line-height:1.6;color:#334155;\">${escapeHtml(trimmed)}</p>`\n      );\n    }\n  }\n\n  closeList();\n  return output.join(\"\\n\");\n}\n\n// ---------- KPI values ----------\nconst totalIncome = Number(metrics.totalIncome ?? 0);\nconst totalExpenses = Number(metrics.totalExpenses ?? 0);\nconst netSavings = Number(metrics.netSavings ?? 0);\nconst savingsRate = metrics.savingsRate;\n\nconst categories = Array.isArray(metrics.expenseCategories)\n  ? metrics.expenseCategories\n  : [];\n\nconst chartUrls = metrics.chartUrls || {};\n\nconst categoryColors = [\"#E0B4AE\", \"#F2CC9E\", \"#BCD5D8\"];\n\n// ---------- Category table ----------\nconst categoryRows = categories.length\n  ? categories.map((category, index) => {\n      const pct = Math.max(0, Math.min(100, Number(category.pct) || 0));\n      const color = categoryColors[index % categoryColors.length];\n\n      return `\n        <tr>\n          <td style=\"padding:10px;border-bottom:1px solid #eeeeee;color:#334155;\">\n            ${escapeHtml(category.name)}\n          </td>\n          <td style=\"padding:10px;text-align:right;border-bottom:1px solid #eeeeee;white-space:nowrap;\">\n            ${money(category.amount)}\n          </td>\n          <td style=\"padding:10px;border-bottom:1px solid #eeeeee;width:35%;\">\n            <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\">\n              <tr>\n                <td width=\"${pct}%\" bgcolor=\"${color}\" height=\"12\"\n                    style=\"font-size:0;line-height:0;\">&nbsp;</td>\n                <td style=\"font-size:0;line-height:0;\">&nbsp;</td>\n              </tr>\n            </table>\n            <div style=\"font-size:12px;color:#64748b;margin-top:4px;\">${pct.toFixed(2)}%</div>\n          </td>\n        </tr>\n      `;\n    }).join(\"\")\n  : `<tr><td colspan=\"3\" style=\"padding:12px;\">No expense categories available.</td></tr>`;\n\n// ---------- Chart images ----------\nfunction chartImage(url, alt) {\n  const safeUrl = safeImageUrl(url);\n\n  if (!safeUrl) {\n    return `<p style=\"color:#64748b;\">${escapeHtml(alt)}: chart unavailable.</p>`;\n  }\n\n  return `\n    <tr>\n      <td align=\"center\" style=\"padding:12px 0;\">\n        <img src=\"${safeUrl}\" width=\"600\" alt=\"${escapeHtml(alt)}\"\n             style=\"display:block;width:100%;max-width:600px;height:auto;border:0;\">\n      </td>\n    </tr>\n  `;\n}\n\n// ---------- Assemble the email ----------\nconst html = `\n<!DOCTYPE html>\n<html>\n<body style=\"margin:0;padding:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#334155;\">\n  <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background:#f4f7fb;\">\n    <tr>\n      <td align=\"center\" style=\"padding:20px 10px;\">\n        <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"\n               style=\"max-width:680px;background:#ffffff;border:1px solid #e5e7eb;\">\n\n          <tr>\n            <td bgcolor=\"#BCD5D8\" style=\"padding:24px;text-align:center;\">\n              <h1 style=\"margin:0;font-size:24px;color:#243746;\">Financial Summary Report</h1>\n              <p style=\"margin:8px 0 0;font-size:13px;color:#334155;\">\n                Generated ${escapeHtml(new Date().toISOString().slice(0, 10))}\n              </p>\n            </td>\n          </tr>\n\n          <tr>\n            <td style=\"padding:20px;\">\n              <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"\n                     style=\"border-collapse:collapse;\">\n                <tr>\n                  <td bgcolor=\"#D9EAD3\" width=\"48%\" style=\"padding:15px;font-weight:bold;color:#24532a;\">\n                    Total income\n                  </td>\n                  <td width=\"52%\" style=\"padding:15px;border:1px solid #e5e7eb;font-weight:bold;\">\n                    ${money(totalIncome)}\n                  </td>\n                </tr>\n                <tr>\n                  <td bgcolor=\"#F4CCCC\" style=\"padding:15px;font-weight:bold;color:#8a3030;\">\n                    Total expenses\n                  </td>\n                  <td style=\"padding:15px;border:1px solid #e5e7eb;font-weight:bold;\">\n                    ${money(totalExpenses)}\n                  </td>\n                </tr>\n                <tr>\n                  <td bgcolor=\"#BCD5D8\" style=\"padding:15px;font-weight:bold;color:#243746;\">\n                    Total savings\n                  </td>\n                  <td style=\"padding:15px;border:1px solid #e5e7eb;font-weight:bold;\">\n                    ${money(netSavings)}\n                  </td>\n                </tr>\n              </table>\n\n              <p style=\"font-size:13px;color:#64748b;margin:12px 0 0;\">\n                Savings rate: ${savingsRate == null ? \"N/A\" : escapeHtml(Number(savingsRate).toFixed(2) + \"%\")}\n              </p>\n\n              <h2 style=\"font-size:19px;margin:28px 0 8px;color:#243746;\">Your charts</h2>\n              <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\n                ${chartImage(chartUrls.incomeVsExpenses, \"Daily income versus expenses\")}\n                ${chartImage(chartUrls.expenseBreakdown, \"Expense category breakdown\")}\n                ${chartImage(chartUrls.cumulativeSavings, \"Cumulative savings\")}\n              </table>\n\n              <h2 style=\"font-size:19px;margin:24px 0 8px;color:#243746;\">Where the money went</h2>\n              <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"\n                     style=\"border-collapse:collapse;font-size:13px;\">\n                <tr bgcolor=\"#f1f5f9\">\n                  <th align=\"left\" style=\"padding:10px;\">Category</th>\n                  <th align=\"right\" style=\"padding:10px;\">Amount</th>\n                  <th align=\"left\" style=\"padding:10px;\">Share</th>\n                </tr>\n                ${categoryRows}\n              </table>\n\n              <h2 style=\"font-size:19px;margin:28px 0 8px;color:#243746;\">Financial explanation and recommendations</h2>\n              ${markdownToHtml(aiText)}\n            </td>\n          </tr>\n\n          <tr>\n            <td bgcolor=\"#f1f5f9\" style=\"padding:16px;text-align:center;font-size:12px;color:#64748b;\">\n              Automatically generated financial report\n            </td>\n          </tr>\n\n        </table>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>\n`;\n\n// ---------- Email subject and log-sheet summary ----------\nconst subject =\n  `Financial Summary - ${new Date().toISOString().slice(0, 10)}`;\n\nconst summaryRow = {\n  generatedAt: new Date().toISOString(),\n  totalIncome,\n  totalExpenses,\n  netSavings,\n  savingsRate,\n  categoryCount: categories.length,\n  biggestExpense: metrics.biggestExpense?.amount ?? null,\n  aiSummary: aiText.slice(0, 500),\n  reportSubject: subject\n};\n\nreturn [{\n  json: {\n    subject,\n    html,\n    summaryRow\n  }\n}];\n"
+      },
+      "id": "569e2519-426a-4683-978e-23b6277ca6a1",
+      "name": "Build Email HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1bfgUvysripj-_h3E_IusGvxtcfEZpPXr2UIE5LrxiZ8",
+          "mode": "list",
+          "cachedResultName": "Transactions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1bfgUvysripj-_h3E_IusGvxtcfEZpPXr2UIE5LrxiZ8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 419955123,
+          "mode": "list",
+          "cachedResultName": "Monthly Summary",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1bfgUvysripj-_h3E_IusGvxtcfEZpPXr2UIE5LrxiZ8/edit#gid=419955123"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Total Income (KES)": "={{ $json.summaryRow.totalIncome }}",
+            "Total Expenses (KES)": "={{ $json.summaryRow.totalExpenses }}",
+            "Net Savings (KES)": "={{ $json.summaryRow.netSavings }}",
+            "Savings Rate (%)": "={{ $json.summaryRow.savingsRate }}",
+            "Top Expense Category": "={{ $(\"Calculate Metrics\").first().json.expenseCategories?.[0]?.name ?? \"N/A\" }}",
+            "Transactions": "={{ $(\"Calculate Metrics\").first().json.validRowCount }}",
+            "Report Sent": "={{ $now.toFormat(\"yyyy-MM-dd HH:mm\") }}",
+            "Month": "={{ $(\"Calculate Metrics\").first().json.monthOverMonth?.latestMonth ?? $now.toFormat(\"yyyy-MM\") }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Month",
+              "displayName": "Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Total Income (KES)",
+              "displayName": "Total Income (KES)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Total Expenses (KES)",
+              "displayName": "Total Expenses (KES)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Net Savings (KES)",
+              "displayName": "Net Savings (KES)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Savings Rate (%)",
+              "displayName": "Savings Rate (%)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Top Expense Category",
+              "displayName": "Top Expense Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Transactions",
+              "displayName": "Transactions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Report Sent",
+              "displayName": "Report Sent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "35c54fd5-4559-4ea6-b8d1-606abbfbcd75",
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1136,
+        16
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "pv191130@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "d0650317-ee09-4358-89a7-db9f67641c7a",
+      "name": "Send a message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1136,
+        208
+      ],
+      "webhookId": "eacc630e-b519-4a66-b7b3-cab206176204",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9MJX8ahvUvInShMW",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months",
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "c249c6e6-fe54-4506-9f5a-c372943b1b29",
+      "name": "Monthly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -160,
+        208
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Transactions": {
+      "main": [
+        [
+          {
+            "node": "Calculate Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Metrics": {
+      "main": [
+        [
+          {
+            "node": "Geminin Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Geminin Analysis": {
+      "main": [
+        [
+          {
+            "node": "Build Email HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email HTML": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monthly Schedule": {
+      "main": [
+        [
+          {
+            "node": "Read Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "928225d9-d815-4e2c-a55f-3b18ed617b5c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "207794e093b5b58253c69159858e80eecdc864e7fe70a2e8c01f1d11952c1493"
+  },
+  "nodeGroups": [
+    {
+      "id": "1086a6fe-ab82-48d9-a1b1-80eceeacf51c",
+      "name": "Analyze finances",
+      "nodeIds": [
+        "dca260ab-b04e-4990-9724-dc51e786dd87",
+        "b6085187-b395-4b5c-8d05-39e0e1a3a053",
+        "9dcc7d81-85e8-48b0-8194-14b0b00e5013"
+      ],
+      "description": "Reads all transactions from the sheet, computes totals and charts, and gets a plain-language AI explanation"
+    },
+    {
+      "id": "6aba3139-9821-47d3-ba24-daa18b218702",
+      "name": "Deliver monthly report",
+      "nodeIds": [
+        "569e2519-426a-4683-978e-23b6277ca6a1",
+        "35c54fd5-4559-4ea6-b8d1-606abbfbcd75",
+        "d0650317-ee09-4358-89a7-db9f67641c7a"
+      ],
+      "description": "Emails the HTML report and logs a summary row to the Monthly Summary tab"
+    }
+  ],
+  "id": "Xkkl0gB0MbfTtdlT",
+  "tags": []
+}

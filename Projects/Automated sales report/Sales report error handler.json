@@ -1,0 +1,67 @@
+{
+  "name": "Sales report error handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4b623bf0-521c-4c27-a57a-8c588b126783",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "sendTo": "pv191130@gmail.com",
+        "subject": "n8n Failure: {{ $json.workflow.name }}",
+        "emailType": "text",
+        "message": "Hello,  Your n8n workflow has failed.  Workflow name: {{ $json.workflow.name }} Workflow ID: {{ $json.workflow.id }}  Last node executed: {{ $json.execution.lastNodeExecuted }}  Error message: {{ $json.execution.error.message }}  Execution details: {{ $json.execution.url }}  Please open the execution link to investigate the problem.  This is an automated notification from your n8n error-handling workflow.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "57628ce2-26d0-4123-a5a1-f0a35d792176",
+      "name": "Send a message",
+      "webhookId": "3f8b191c-2ded-4a64-834e-2df26e7334ca",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9MJX8ahvUvInShMW",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ea74cbd2-9ee6-4e19-ba30-499db5c75bbe",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "207794e093b5b58253c69159858e80eecdc864e7fe70a2e8c01f1d11952c1493"
+  },
+  "nodeGroups": [],
+  "id": "DxCYN4maX9brRQlA",
+  "tags": []
+}
