@@ -6,6 +6,7 @@ import pandas as pd
 
 from analytics import metrics, optimize, plots
 from analytics.data import ASSETS, load_prices
+from analytics.ingest import YAHOO_SYMBOLS
 
 
 def main():
@@ -41,7 +42,7 @@ def main():
 
     # 1. Per-asset statistics
     table = metrics.summary_table(rets, rf=args.rf)
-    table.insert(0, "Market", [ASSETS.get(t, "?") for t in table.index])
+    table.insert(0, "Market", [ASSETS.get(t, "INTL" if t in YAHOO_SYMBOLS else "NSE") for t in table.index])
     table.to_csv(out / "asset_summary.csv")
 
     # 2. Allocations (long-only, 40% cap)

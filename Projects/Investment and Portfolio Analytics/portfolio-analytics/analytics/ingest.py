@@ -99,9 +99,12 @@ def import_nse_csvs(folder: str | Path) -> pd.DataFrame:
     """Each file name (without extension) is the ticker."""
     series = {}
     for p in sorted(Path(folder).glob("*.csv")):
-        series[p.stem.upper()] = read_price_csv(p)
+        try:
+            series[p.stem.upper()] = read_price_csv(p)
+        except ValueError as e:          # one bad file should not drop the others
+            print(f"WARNING: skipped {p.name}: {e}")
     if not series:
-        raise FileNotFoundError(f"No CSV files found in {folder}")
+        raise FileNotFoundError(f"No usable CSV files found in {folder}")
     return pd.DataFrame(series)
 
 
@@ -140,8 +143,11 @@ def main():
         n = upsert_prices(con, _to_long(fetch_yahoo(start=args.start)), "yahoo")
         print(f"Yahoo: {n} rows upserted")
     if args.nse_dir:
-        n = upsert_prices(con, _to_long(import_nse_csvs(args.nse_dir)), "csv")
-        print(f"NSE CSV: {n} rows upserted")
+        try:
+            n = upsert_prices(con, _to_long(import_nse_csvs(args.nse_dir)), "csv")
+            print(f"NSE CSV: {n} rows upserted")
+        except FileNotFoundError as e:   # warn, don't crash: the summary flags missing NSE data
+            print(f"WARNING: no NSE data loaded ({e}). The weekly summary will say NSE has no data.")
     for row in con.execute("SELECT ticker, last_date, n_rows FROM latest_prices ORDER BY ticker"):
         print(f"  {row[0]:6s} last={row[1]}  rows={row[2]}")
     con.close()

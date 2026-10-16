@@ -1,91 +1,105 @@
+"""Build the weekly summary used by the n8n WhatsApp step.
 
-"""Generate a weekly portfolio summary for the n8n WhatsApp workflow."""
+Prints ONE line of JSON to stdout:
+    {"period": ..., "params": [7 single-line strings], "text": "...", "stale": bool}
+
+`params` fill the variables of the approved WhatsApp template (see n8n/WHATSAPP_SETUP.md).
+WhatsApp template variables must not contain line breaks, so everything here is one line.
+
+    python -m analytics.weekly_summary --db data/portfolio.db --benchmark SPY
+"""
 import argparse
 import json
-from pathlib import Path
+from datetime import date
 
 import pandas as pd
 
 from analytics import metrics
-from analytics.ingest import read_prices
+from analytics.data import ASSETS, clean_prices
+from analytics.ingest import YAHOO_SYMBOLS, read_prices
+
+WEEK_DAYS = 5          # trading rows that make up "this week"
+STALE_AFTER_DAYS = 4   # warn if the newest common price date is older than this
+
+
+def pct(x: float) -> str:
+    return f"{x * 100:+.1f}%"
+
+
+def build_summary(prices: pd.DataFrame, benchmark: str = "SPY", today: date | None = None) -> dict:
+    today = today or date.today()
+    rets = metrics.daily_returns(prices)
+    if len(rets) <= WEEK_DAYS:
+        raise ValueError("Not enough history for a weekly summary")
+
+    week = rets.iloc[-WEEK_DAYS:]
+    weekly = (1 + week).prod() - 1                       # per-asset weekly return
+    eq = pd.Series(1 / rets.shape[1], index=rets.columns)
+    port = metrics.portfolio_returns(rets, eq)           # equal weight, monthly rebalance
+    port_week = (1 + port.iloc[-WEEK_DAYS:]).prod() - 1
+    dd_now = metrics.drawdown_series(port).iloc[-1]
+
+    best, worst = weekly.idxmax(), weekly.idxmin()
+    bench_week = weekly[benchmark] if benchmark in weekly.index else float("nan")
+
+    last = rets.index[-1].date()
+    age = (today - last).days
+    stale = age > STALE_AFTER_DAYS
+    freshness = f"STALE, last common price date {last}" if stale else f"{last}"
+
+    period = f"{week.index[0].date()} to {last}"
+    params = [
+        period,
+        pct(port_week),
+        f"{benchmark} {pct(bench_week)}" if pd.notna(bench_week) else "n/a",
+        f"{best} {pct(weekly[best])}",
+        f"{worst} {pct(weekly[worst])}",
+        f"{abs(dd_now) * 100:.1f}% below peak" if dd_now < -0.0005 else "at a new high",
+        freshness,
+    ]
+    params = [" ".join(p.split()) for p in params]       # collapse any whitespace/newlines
+
+    def fmt(tickers):
+        ordered = weekly[tickers].sort_values(ascending=False)
+        return ", ".join(f"{t} {pct(v)}" for t, v in ordered.items())
+
+    # Anything not fetched from Yahoo comes from the NSE CSV folder, so new NSE tickers
+    # (e.g. TOTL) are picked up without editing a ticker list.
+    intl = [t for t in weekly.index if t in YAHOO_SYMBOLS]
+    nse = [t for t in weekly.index if t not in YAHOO_SYMBOLS]
+    missing_nse = [t for t, m in ASSETS.items() if m == "NSE" and t not in weekly.index]
+
+    if nse:
+        nse_line = f"NSE (avg {pct(weekly[nse].mean())}): {fmt(nse)}"
+        if missing_nse:
+            nse_line += f". Missing: {', '.join(missing_nse)}"
+    else:
+        nse_line = "NSE: NO DATA. Add CSVs to data/nse and re-run the ingest step"
+    intl_line = f"International: {fmt(intl)}" if intl else "International: no data"
+
+    text = "\n".join([
+        f"Weekly portfolio summary ({period})",
+        f"Equal-weight portfolio ({len(weekly)} assets): {pct(port_week)} | benchmark {params[2]}",
+        f"Drawdown: {params[5]}",
+        nse_line,
+        intl_line,
+        f"Data updated: {freshness}",
+        "Historical figures only, not a forecast or investment advice.",
+    ])
+    coverage = {"nse": nse, "international": intl, "missing_nse": missing_nse}
+    return {"period": period, "params": params, "text": text, "stale": stale, "coverage": coverage}
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--db", default="data/portfolio.db")
-    parser.add_argument("--benchmark", default="SPY")
-    parser.add_argument("--rf", type=float, default=0.10)
-    parser.add_argument("--start", default="2021-01-01")
-    args = parser.parse_args()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--db", default="data/portfolio.db")
+    ap.add_argument("--benchmark", default="SPY")
+    ap.add_argument("--today", help="override today's date (YYYY-MM-DD), for testing")
+    args = ap.parse_args()
 
-    prices = read_prices(args.db, start=args.start)
-
-    if args.benchmark not in prices.columns:
-        raise ValueError(
-            f"Benchmark {args.benchmark} is missing from the database. "
-            f"Available tickers: {list(prices.columns)}"
-        )
-
-    # Use the available history to calculate portfolio metrics.
-    returns = metrics.daily_returns(prices)
-    if returns.empty:
-        raise ValueError("Not enough price history to calculate returns.")
-
-    # Equal-weight portfolio across available non-benchmark assets.
-    assets = [c for c in returns.columns if c != args.benchmark]
-    if not assets:
-        raise ValueError("No portfolio assets found.")
-
-    portfolio_returns = returns[assets].mean(axis=1)
-    benchmark_returns = returns[args.benchmark]
-
-    # Compare the latest five trading sessions with the previous five.
-    recent = portfolio_returns.tail(5)
-    previous = portfolio_returns.iloc[-10:-5]
-
-    if len(recent) < 5 or len(previous) < 5:
-        raise ValueError("At least 10 trading sessions are needed.")
-
-    recent_change = (1 + recent).prod() - 1
-    previous_change = (1 + previous).prod() - 1
-    change_pp = (recent_change - previous_change) * 100
-
-    ann_return = metrics.annualised_return(portfolio_returns)
-    ann_volatility = metrics.annualised_volatility(portfolio_returns)
-    sharpe = metrics.sharpe_ratio(portfolio_returns, args.rf)
-    max_dd = metrics.max_drawdown(portfolio_returns)
-    benchmark_return = metrics.annualised_return(benchmark_returns)
-
-    latest_date = prices.index[-1].strftime("%Y-%m-%d")
-    latest_prices = prices.iloc[-1]
-    top_ticker = max(assets, key=lambda t: returns[t].tail(5).add(1).prod())
-    top_return = (returns[top_ticker].tail(5).add(1).prod() - 1) * 100
-
-    # Exactly seven plain-text parameters for the approved WhatsApp template.
-    params = [
-        latest_date,
-        f"{recent_change * 100:.2f}%",
-        f"{change_pp:+.2f} percentage points",
-        f"{ann_return * 100:.2f}%",
-        f"{ann_volatility * 100:.2f}%",
-        f"{sharpe:.2f}",
-        f"{top_ticker} ({top_return:+.2f}%)",
-    ]
-
-    text = (
-        f"Portfolio update as of {latest_date}. "
-        f"Recent five-session return: {params[1]}. "
-        f"Change versus the preceding five sessions: {params[2]}. "
-        f"Annualised return: {params[3]}; volatility: {params[4]}; "
-        f"Sharpe ratio: {params[5]}. "
-        f"Top recent asset: {params[6]}. "
-        f"Benchmark {args.benchmark} annualised return: "
-        f"{benchmark_return * 100:.2f}%. "
-        f"Maximum drawdown over the available period: {max_dd * 100:.2f}%."
-    )
-
-    # The JSON must be the final stdout line for the n8n Code node.
-    print(json.dumps({"params": params, "text": text}, ensure_ascii=False))
+    prices = clean_prices(read_prices(args.db))
+    today = date.fromisoformat(args.today) if args.today else None
+    print(json.dumps(build_summary(prices, args.benchmark, today), ensure_ascii=False))
 
 
 if __name__ == "__main__":

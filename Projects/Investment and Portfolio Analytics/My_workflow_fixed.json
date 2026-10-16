@@ -1,0 +1,338 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -112
+      ],
+      "id": "25650d30-a652-41ac-a625-9b5f4eeba5b1",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6ec10e7a-4e22-4666-9581-301094d638a7",
+              "name": "projectDir",
+              "value": "C:\\Users\\Admin\\OneDrive\\Belgeler\\Data Science\\Projects\\Investment and Portfolio Analytics\\portfolio-analytics",
+              "type": "string"
+            },
+            {
+              "id": "730ecbb5-71d2-431e-9d51-4446e08818d6",
+              "name": "python",
+              "value": "python",
+              "type": "string"
+            },
+            {
+              "id": "4883c6df-ee91-4ba6-a402-f8e12a05970c",
+              "name": "dbPath",
+              "value": "data/portfolio.db",
+              "type": "string"
+            },
+            {
+              "id": "fd9b378c-951e-4d61-a0ee-fd226bbe46aa",
+              "name": "startDate",
+              "value": "2021-01-01",
+              "type": "string"
+            },
+            {
+              "id": "ebd899eb-459c-458e-832b-ca01647b468d",
+              "name": "riskFreeRate",
+              "value": "0.10",
+              "type": "string"
+            },
+            {
+              "id": "2591d03b-df38-4795-b87e-dd8640f63725",
+              "name": "benchmark",
+              "value": "SPY",
+              "type": "string"
+            },
+            {
+              "id": "9d2a1b73-cda7-471a-8c41-adc34214c0f9",
+              "name": "graphVersion",
+              "value": "v26.0",
+              "type": "string"
+            },
+            {
+              "id": "18ec8de6-6380-46ee-9053-42fce99c1b7b",
+              "name": "phoneNumberId",
+              "value": "0718778005",
+              "type": "string"
+            },
+            {
+              "id": "066f71da-f7db-42a9-9262-ad4c85e57917",
+              "name": "recipient",
+              "value": "0718778005",
+              "type": "string"
+            },
+            {
+              "id": "0cb8156b-66f4-47cb-9960-4634d3b74205",
+              "name": "templateName",
+              "value": "weekly_portfolio_summary",
+              "type": "string"
+            },
+            {
+              "id": "ef84829b-0d26-4d0e-96b1-1e181c17e8b0",
+              "name": "templateLang",
+              "value": "en",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        -112
+      ],
+      "id": "05df7c53-2781-4082-a5ea-8278f4dce510",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "command": "cmd.exe /c \"cd /d \"\"C:\\Users\\Admin\\OneDrive\\Belgeler\\Data Science\\Projects\\Investment and Portfolio Analytics\\portfolio-analytics\"\" && python -m analytics.ingest --db data/portfolio.db --yahoo --nse-dir data/nse\""
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        448,
+        -112
+      ],
+      "id": "cab96aeb-3a55-4c03-b7a2-2ef6f81494f4",
+      "name": "Ingest Price"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1e44836c-c4c9-40a6-a6d0-0771ac61ebeb",
+              "leftValue": "={{ $now.weekday }}",
+              "rightValue": 6,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        -112
+      ],
+      "id": "b38308b6-7405-4670-b392-daf246f5e48a",
+      "name": "is Saturday?"
+    },
+    {
+      "parameters": {
+        "command": "cmd.exe /c \"cd /d \"\"C:\\Users\\Admin\\OneDrive\\Belgeler\\Data Science\\Projects\\Investment and Portfolio Analytics\\portfolio-analytics\"\" && python run_analysis.py --db data/portfolio.db --start 2021-01-01 --rf 0.10 --benchmark SPY\""
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        896,
+        -112
+      ],
+      "id": "918e668b-11a5-433a-b922-579043fdb393",
+      "name": "Run Analysis"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lines = String($input.first().json.stdout || '').trim().split('\\n');\nconst summary = JSON.parse(lines[lines.length - 1]);\nreturn [{ json: { text: summary.text } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        -112
+      ],
+      "id": "46daa071-dcab-44af-ba4f-2296f0372ffa",
+      "name": "Build Whatsapp Messages"
+    },
+    {
+      "parameters": {
+        "command": "cmd.exe /c \"cd /d \"\"C:\\Users\\Admin\\OneDrive\\Belgeler\\Data Science\\Projects\\Investment and Portfolio Analytics\\portfolio-analytics\"\" && python -m analytics.weekly_summary --db data/portfolio.db --benchmark SPY\""
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -112
+      ],
+      "id": "1b68011f-cafe-48d2-b218-aff6f473ee23",
+      "name": "weekly summary"
+    },
+    {
+      "parameters": {
+        "url": "https://api.callmebot.com/whatsapp.php",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "+254718778005"
+            },
+            {
+              "name": "=text",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "apikey",
+              "value": "4418444"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1568,
+        -112
+      ],
+      "id": "c76b0911-ae68-4dd7-aab2-41cdd4985cd8",
+      "name": "Call me bot node"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 2-6"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        256
+      ],
+      "id": "141163e5-483b-4485-90cd-a3190fcdf9c9",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Ingest Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ingest Price": {
+      "main": [
+        [
+          {
+            "node": "is Saturday?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "is Saturday?": {
+      "main": [
+        [
+          {
+            "node": "Run Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Analysis": {
+      "main": [
+        [
+          {
+            "node": "weekly summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "weekly summary": {
+      "main": [
+        [
+          {
+            "node": "Build Whatsapp Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Whatsapp Messages": {
+      "main": [
+        [
+          {
+            "node": "Call me bot node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "03f523c4-d6b9-431f-8535-f849e1c42d4f",
+  "meta": {
+    "instanceId": "81c6598b196e21d573cb8ef23d9380aff4d7cf21fb7a4de4910b0baabaf6cf7f"
+  },
+  "nodeGroups": [],
+  "id": "YSO1dcOwttKCuC3q",
+  "tags": []
+}

@@ -1,4 +1,3 @@
-
 """Data loading and a synthetic sample generator.
 
 Real use: put a CSV in data/prices.csv with a `date` column and one adjusted-close

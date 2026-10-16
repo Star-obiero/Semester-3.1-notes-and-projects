@@ -5,17 +5,8 @@ import pandas as pd
 TRADING_DAYS = 252
 
 
-
 def daily_returns(prices: pd.DataFrame) -> pd.DataFrame:
-    # Keep only dates where every selected asset has a price.
-    aligned_prices = prices.dropna(how="any")
-
-    # Do not fill missing prices automatically.
-    returns = aligned_prices.pct_change(fill_method=None)
-
-    # The first row has no previous price for comparison.
-    return returns.dropna(how="any")
-
+    return prices.pct_change().dropna()
 
 
 def cumulative_growth(returns: pd.DataFrame | pd.Series, base: float = 100.0):

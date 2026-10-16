@@ -1,0 +1,310 @@
+{
+  "name": "Portfolio Analytics - Daily Ingest and Weekly WhatsApp Summary",
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 2-6"
+            }
+          ]
+        }
+      },
+      "notes": "08:00 Tue-Sat (workflow timezone), after the previous day's NSE and US closes. Saturday run sends the weekly summary."
+    },
+    {
+      "id": "n2",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg0",
+              "name": "projectDir",
+              "value": "/path/to/portfolio-analytics",
+              "type": "string"
+            },
+            {
+              "id": "cfg1",
+              "name": "python",
+              "value": "python3",
+              "type": "string"
+            },
+            {
+              "id": "cfg2",
+              "name": "dbPath",
+              "value": "data/portfolio.db",
+              "type": "string"
+            },
+            {
+              "id": "cfg3",
+              "name": "startDate",
+              "value": "2021-01-01",
+              "type": "string"
+            },
+            {
+              "id": "cfg4",
+              "name": "riskFreeRate",
+              "value": "0.10",
+              "type": "string"
+            },
+            {
+              "id": "cfg5",
+              "name": "benchmark",
+              "value": "SPY",
+              "type": "string"
+            },
+            {
+              "id": "cfg6",
+              "name": "graphVersion",
+              "value": "v23.0",
+              "type": "string"
+            },
+            {
+              "id": "cfg7",
+              "name": "phoneNumberId",
+              "value": "REPLACE_WITH_WHATSAPP_PHONE_NUMBER_ID",
+              "type": "string"
+            },
+            {
+              "id": "cfg8",
+              "name": "recipient",
+              "value": "2547XXXXXXXX",
+              "type": "string"
+            },
+            {
+              "id": "cfg9",
+              "name": "templateName",
+              "value": "weekly_portfolio_summary",
+              "type": "string"
+            },
+            {
+              "id": "cfg10",
+              "name": "templateLang",
+              "value": "en",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "Edit every value here. No secrets in this node: the WhatsApp token lives in an n8n credential."
+    },
+    {
+      "id": "n3",
+      "name": "Ingest Prices",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "command": "={{ 'cd \"' + $('Config').first().json.projectDir + '\" && ' + $('Config').first().json.python + ' -m analytics.ingest --db ' + $('Config').first().json.dbPath + ' --yahoo --nse-dir data/nse' }} }}"
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Is Saturday?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "sat",
+              "leftValue": "={{ $now.weekday }}",
+              "rightValue": 6,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Run Analysis",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        880,
+        -100
+      ],
+      "parameters": {
+        "command": "={{ 'cd \"' + $('Config').first().json.projectDir + '\" && ' + $('Config').first().json.python + ' run_analysis.py --db ' + $('Config').first().json.dbPath + ' --start ' + $('Config').first().json.startDate + ' --rf ' + $('Config').first().json.riskFreeRate + ' --benchmark ' + $('Config').first().json.benchmark }} }}"
+      },
+      "notes": "Refreshes charts and CSVs in output/."
+    },
+    {
+      "id": "n6",
+      "name": "Weekly Summary",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        -100
+      ],
+      "parameters": {
+        "command": "={{ 'cd \"' + $('Config').first().json.projectDir + '\" && ' + $('Config').first().json.python + ' -m analytics.weekly_summary --db ' + $('Config').first().json.dbPath + ' --benchmark ' + $('Config').first().json.benchmark }} }}"
+      }
+    },
+    {
+      "id": "n7",
+      "name": "Build WhatsApp Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        -100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Parse the single JSON line printed by analytics.weekly_summary and build the\n// WhatsApp Cloud API template request. Template variables must be single-line text.\nconst cfg = $('Config').first().json;\nconst lines = String($input.first().json.stdout || '').trim().split('\\n');\nlet summary;\ntry {\n  summary = JSON.parse(lines[lines.length - 1]);\n} catch (e) {\n  throw new Error('weekly_summary did not print valid JSON: ' + lines[lines.length - 1]);\n}\nif (!Array.isArray(summary.params) || summary.params.length !== 7) {\n  throw new Error('Expected 7 template parameters, got ' + JSON.stringify(summary.params));\n}\nconst clean = (t) => String(t).replace(/\\s+/g, ' ').trim().slice(0, 500);\n\nconst whatsappBody = {\n  messaging_product: 'whatsapp',\n  to: cfg.recipient,\n  type: 'template',\n  template: {\n    name: cfg.templateName,\n    language: { code: cfg.templateLang },\n    components: [\n      { type: 'body', parameters: summary.params.map((t) => ({ type: 'text', text: clean(t) })) },\n    ],\n  },\n};\nreturn [{ json: { whatsappBody, preview: summary.text, stale: summary.stale } }];\n"
+      }
+    },
+    {
+      "id": "n8",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.graphVersion }}/{{ $('Config').first().json.phoneNumberId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.whatsappBody) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "WhatsApp Cloud API token"
+        }
+      },
+      "notes": "Credential: Header Auth, name 'Authorization', value 'Bearer <permanent access token>'."
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Ingest Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ingest Prices": {
+      "main": [
+        [
+          {
+            "node": "Is Saturday?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Saturday?": {
+      "main": [
+        [
+          {
+            "node": "Run Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Run Analysis": {
+      "main": [
+        [
+          {
+            "node": "Weekly Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Summary": {
+      "main": [
+        [
+          {
+            "node": "Build WhatsApp Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build WhatsApp Message": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Nairobi"
+  }
+}

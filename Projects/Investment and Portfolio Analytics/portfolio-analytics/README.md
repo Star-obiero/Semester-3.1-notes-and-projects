@@ -59,7 +59,13 @@ python run_analysis.py --db data/portfolio.db --start 2021-01-01 --rf 0.10
 - When a database is used, charts no longer carry the "SIMULATED" label, so make sure the database
   holds real data.
 
+## Automation (n8n + WhatsApp)
+
+`n8n/workflow.json` ingests prices Tue-Sat at 08:00 and sends a weekly WhatsApp summary on Saturdays.
+`python -m analytics.weekly_summary --db data/portfolio.db` prints the summary as one JSON line.
+Setup steps, the WhatsApp template text and caveats are in `n8n/WHATSAPP_SETUP.md`.
+
 ## Next steps
 
-1. n8n workflow: scheduled ingestion, triggers `run_analysis.py`, sends a weekly summary.
+1. Import the workflow into n8n and complete the WhatsApp setup.
 2. Optional: KES/USD conversion for a single-currency view.
