@@ -1,0 +1,477 @@
+{
+  "name": "Sales Report Automation",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "ebf0e601-61d9-4e6c-b03a-5d5a52cef062",
+      "name": "When clicking \u2018Execute workflow\u2019",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1904,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "77822196-2059-420e-8338-86c094a2dcdb",
+              "name": "businessName",
+              "value": "Makutano wholesalers",
+              "type": "string"
+            },
+            {
+              "id": "46e4b594-5ea8-4053-8c27-0aa7da2fd495",
+              "name": "reportEmail",
+              "value": "pv191130@gmail.com",
+              "type": "string"
+            },
+            {
+              "id": "d8366ade-c240-4274-91bb-afc6e4e7fb82",
+              "name": "periodDays",
+              "value": "7",
+              "type": "string"
+            },
+            {
+              "id": "4d1ba215-67e1-4a16-a2fa-b4edc4eaddb1",
+              "name": "currency",
+              "value": "KES",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4510cd92-6472-4ec6-83b8-53a2c261b97e",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -1680,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s",
+          "mode": "list",
+          "cachedResultName": "sample_sales",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1421934753,
+          "mode": "list",
+          "cachedResultName": "sample_sales",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s/edit#gid=1421934753"
+        },
+        "options": {}
+      },
+      "id": "78dc0103-61c8-4f7d-b615-280a51332b0e",
+      "name": "Get row(s) in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1456,
+        -48
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldsToSummarize": {
+          "values": [
+            {
+              "aggregation": "sum",
+              "field": "quantity"
+            },
+            {
+              "aggregation": "countUnique",
+              "field": "order_id"
+            }
+          ]
+        },
+        "fieldsToSplitBy": "category",
+        "options": {}
+      },
+      "id": "490c8b30-e870-48be-ad7c-06c44c67d191",
+      "name": "Summarize",
+      "type": "n8n-nodes-base.summarize",
+      "typeVersion": 1.1,
+      "position": [
+        -1232,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst rows = $('Get row(s) in sheet').all().map(item => item.json);\n\n// Change these field names if your dataset uses different names.\nconst FIELD = {\n  orderId: 'order_id',\n  date: 'date',\n  product: 'product',\n  quantity: 'quantity',\n  price: 'unit_price',\n  discount: 'discount_pct',\n  cost: 'unit_cost',\n  category: 'category',\n};\n\nconst now = new Date();\nconst DAY = 24 * 60 * 60 * 1000;\n\nconst currentStart = new Date(now.getTime() - 7 * DAY);\nconst previousStart = new Date(now.getTime() - 14 * DAY);\n\nconst money = n => Math.round(n * 100) / 100;\n\nfunction number(value, fallback = 0) {\n  if (value === null || value === undefined || value === '') {\n    return fallback;\n  }\n\n  const n = Number(value);\n  return Number.isFinite(n) ? n : fallback;\n}\n\n// Calculate discounted revenue and gross profit for each row.\nconst lines = rows.map(row => {\n  const quantity = number(row[FIELD.quantity]);\n  const price = number(row[FIELD.price]);\n  const discount = number(row[FIELD.discount]);\n\n  if (discount < 0 || discount > 100) {\n    throw new Error('Discount must be between 0 and 100%.');\n  }\n\n  const revenue = quantity * price * (1 - discount / 100);\n\n  const hasCost =\n    row[FIELD.cost] !== null &&\n    row[FIELD.cost] !== undefined &&\n    row[FIELD.cost] !== '';\n\n  const cost = hasCost\n    ? quantity * number(row[FIELD.cost])\n    : null;\n\n  const date = new Date(row[FIELD.date]);\n\n  return {\n    ...row,\n    _date: date,\n    _revenue: revenue,\n    _cost: cost,\n    _profit: cost === null ? null : revenue - cost,\n  };\n});\n\n// Keep the current and previous seven-day windows separate.\nconst current = lines.filter(row =>\n  !isNaN(row._date.getTime()) &&\n  row._date >= currentStart &&\n  row._date <= now\n);\n\nconst previous = lines.filter(row =>\n  !isNaN(row._date.getTime()) &&\n  row._date >= previousStart &&\n  row._date < currentStart\n);\n\nfunction summarize(periodRows) {\n  const revenue = periodRows.reduce(\n    (sum, row) => sum + row._revenue, 0\n  );\n\n  const orderIds = new Set(\n    periodRows\n      .map(row => row[FIELD.orderId])\n      .filter(id => id !== null && id !== undefined && id !== '')\n      .map(String)\n  );\n\n  const knownCostRows = periodRows.filter(\n    row => row._cost !== null\n  );\n\n  const cost = knownCostRows.reduce(\n    (sum, row) => sum + row._cost, 0\n  );\n\n  const profit = knownCostRows.length\n    ? knownCostRows.reduce((sum, row) => sum + row._profit, 0)\n    : null;\n\n  return {\n    revenue: money(revenue),\n    orders: orderIds.size,\n    averageOrderValue: orderIds.size\n      ? money(revenue / orderIds.size)\n      : 0,\n    costOfGoodsSold: knownCostRows.length\n      ? money(cost)\n      : null,\n    grossProfit: profit === null ? null : money(profit),\n    grossMarginPct: profit === null || revenue === 0\n      ? null\n      : money((profit / revenue) * 100),\n    lineItems: periodRows.length,\n    units: periodRows.reduce((sum, row) => sum + number(row[FIELD.quantity]), 0),\n  };\n}\n\nconst currentSummary = summarize(current);\nconst previousSummary = summarize(previous);\n\n// Calculate percentage growth against the previous period.\nconst revenueChangePct = previousSummary.revenue !== 0\n  ? money(\n      ((currentSummary.revenue - previousSummary.revenue) /\n        previousSummary.revenue) * 100\n    )\n  : null;\n\n// Rank products by discounted revenue in the current period.\nconst products = {};\n\nfor (const row of current) {\n  const name = row[FIELD.product] ?? 'Unknown product';\n\n  if (!products[name]) {\n    products[name] = { product: name, quantitySold: 0, revenue: 0 };\n  }\n\n  products[name].quantitySold += number(row[FIELD.quantity]);\n  products[name].revenue += row._revenue;\n}\n\nconst topProducts = Object.values(products)\n  .map(product => ({\n    ...product,\n    revenue: money(product.revenue),\n  }))\n  .sort((a, b) => b.revenue - a.revenue)\n  .slice(0, 5);\n\n// Revenue per calendar day (this week vs the same weekday last week) for the charts in the email.\nconst dayKey = t => new Date(t).toISOString().slice(0, 10);\nconst todayMs = Date.parse(dayKey(now.getTime()));\nconst byDay = rowsArr => {\n  const m = {};\n  rowsArr.forEach(r => { const k = dayKey(r._date.getTime()); m[k] = (m[k] || 0) + r._revenue; });\n  return m;\n};\nconst curByDay = byDay(current);\nconst prevByDay = byDay(previous);\nconst dailyRevenue = [];\nfor (let i = 6; i >= 0; i--) {\n  const ms = todayMs - i * DAY;\n  dailyRevenue.push({\n    date: dayKey(ms),\n    revenue: money(curByDay[dayKey(ms)] || 0),\n    previous: money(prevByDay[dayKey(ms - 7 * DAY)] || 0),\n  });\n}\n\n// Revenue per category in the current period.\nconst cats = {};\nfor (const row of current) {\n  const c = row[FIELD.category] || 'Uncategorised';\n  cats[c] = (cats[c] || 0) + row._revenue;\n}\nconst categories = Object.entries(cats)\n  .map(([category, revenue]) => ({ category, revenue: money(revenue) }))\n  .sort((a, b) => b.revenue - a.revenue)\n  .slice(0, 6);\n\n// Return one structured output item.\nreturn [{\n  json: {\n    generatedAt: now.toISOString(),\n    periods: {\n      current: {\n        start: currentStart.toISOString(),\n        end: now.toISOString(),\n        ...currentSummary,\n      },\n      previous: {\n        start: previousStart.toISOString(),\n        end: currentStart.toISOString(),\n        ...previousSummary,\n      },\n    },\n    revenueChangePct,\n    topProducts,\n    dailyRevenue,\n    categories,\n  },\n}];\n"
+      },
+      "id": "77351352-531c-494e-9518-b22257a2f5cb",
+      "name": "Code in JavaScript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1008,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ role: \"user\", parts: [{ text: \"You are a retail sales analyst for \" + ($(\"Edit Fields\").first().json.businessName || \"our business\") + \". Using the data below (currency: \" + ($(\"Edit Fields\").first().json.currency || \"KES\") + \"), \" + (Number($json.revenueChangePct) < -20 ? \"write ONLY the written analysis for a weekly sales ALERT email (revenue dropped more than 20% vs the previous period). The key figures, charts and top-product lists are added separately, so do not repeat tables or lists of figures. Use this structure: <h3>What happened</h3> then one short <p> (2-3 sentences) explaining the drop using the daily pattern, products and categories in the data; then <h3>What to do</h3> then a <ul> with exactly 3 specific, practical recommendations. Use only <h3>, <p>, <ul>, <li> and <strong>. Do NOT use Markdown, do NOT wrap the answer in code fences, and do NOT include <html>, <head> or <body> tags.\" : \"write ONLY the written analysis for the weekly sales report email. The key figures, charts and top-product lists are added separately, so do not repeat tables or lists of figures. Compare this week with the previous period using the daily pattern, products and categories in the data. Use this structure: <h3>How the week went</h3> then one short <p> (2-3 sentences; if revenue grew, say what drove it; if it fell, say where); then <h3>What to do next</h3> then a <ul> with exactly 3 specific, practical suggestions to keep growth going or fix weak spots. Use only <h3>, <p>, <ul>, <li> and <strong>. Do NOT use Markdown, do NOT wrap the answer in code fences, and do NOT include <html>, <head> or <body> tags.\") + \"\\n\\n\" + JSON.stringify($json, null, 2) }] }] }) }}",
+        "options": {}
+      },
+      "id": "950e70d0-09dd-4105-91af-bbb86d508dc0",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -560,
+        -48
+      ],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YAdYlmW83IqhckfS",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $(\"Edit Fields\").first().json.reportEmail }}",
+        "subject": "={{ (() => { const p = $(\"Code in JavaScript\").first().json.revenueChangePct; const biz = $(\"Edit Fields\").first().json.businessName; const dates = $now.minus({ days: 7 }).toFormat(\"d LLL\") + \" to \" + $now.toFormat(\"d LLL yyyy\"); return (p !== null && p < -20 ? \"ALERT: \" : \"\") + biz + \" weekly sales report\" + (p === null ? \"\" : \": revenue \" + (p < 0 ? \"down \" : \"up \") + Math.abs(p) + \"%\") + \" (\" + dates + \")\"; })() }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "82b29755-01e1-4d84-972f-85948aa68696",
+      "name": "Send Report Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -112,
+        -48
+      ],
+      "webhookId": "33e0acdd-1594-4267-b7aa-f37149a500c2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9MJX8ahvUvInShMW",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s",
+          "mode": "list",
+          "cachedResultName": "sample_sales",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1297286182,
+          "mode": "list",
+          "cachedResultName": "Reports",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14qyK4L144r2mS2vhlbC6Qx1MrL_kZsnwUl-4Lus9N3s/edit#gid=1297286182"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "report_date": "={{ $now.toFormat(\"yyyy-LL-dd\") }}",
+            "period": "={{ DateTime.fromISO($(\"Code in JavaScript\").first().json.periods.current.start).toFormat(\"yyyy-LL-dd\") }} to {{ DateTime.fromISO($(\"Code in JavaScript\").first().json.periods.current.end).toFormat(\"yyyy-LL-dd\") }}",
+            "revenue": "={{ $(\"Code in JavaScript\").first().json.periods.current.revenue }}",
+            "orders": "={{ $(\"Code in JavaScript\").first().json.periods.current.orders }}",
+            "units": "={{ $(\"Code in JavaScript\").first().json.periods.current.units }}",
+            "aov": "={{ $(\"Code in JavaScript\").first().json.periods.current.averageOrderValue }}",
+            "margin_pct": "={{ $(\"Code in JavaScript\").first().json.periods.current.grossMarginPct }}",
+            "revenue_change_pct": "={{ $(\"Code in JavaScript\").first().json.revenueChangePct }}",
+            "top_product": "={{ ($(\"Code in JavaScript\").first().json.topProducts[0] || {}).product || \"\" }}",
+            "alert": "={{ $(\"Code in JavaScript\").first().json.revenueChangePct < -20 ? \"Revenue dropped more than 20%\" : \"\" }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "report_date",
+              "displayName": "report_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "period",
+              "displayName": "period",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "revenue",
+              "displayName": "revenue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "orders",
+              "displayName": "orders",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "units",
+              "displayName": "units",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "aov",
+              "displayName": "aov",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "margin_pct",
+              "displayName": "margin_pct",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "revenue_change_pct",
+              "displayName": "revenue_change_pct",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "top_product",
+              "displayName": "top_product",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "alert",
+              "displayName": "alert",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "7561d7a7-99e0-4131-9d7b-fb097476eacb",
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        112,
+        -48
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "daysInterval": 7,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "772aed6e-9b9a-4eea-8cbd-856e94f78e3c",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1904,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds the email: charts and key figures are drawn here (not by the AI), and Gemini only adds the written analysis.\nconst d = $('Code in JavaScript').first().json;\nconst biz = $('Edit Fields').first().json;\nconst cur = d.periods.current, prev = d.periods.previous;\nconst currency = biz.currency || 'KES';\nconst AMBER = '#d97706';\nconst INK = '#0f172a', MUTED = '#64748b', RED = '#dc2626', GREEN = '#16a34a', BLUE = '#2563eb', GREY = '#cbd5e1', TEAL = '#0d9488', INDIGO = '#4f46e5';\n\nconst esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst fmt = n => (n === null || n === undefined || isNaN(n)) ? '-' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });\nconst short = n => { n = Number(n) || 0; return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(Math.round(n)); };\nconst pct = n => (n === null || n === undefined) ? 'n/a' : (n > 0 ? '+' : '') + n + '%';\nconst chg = (a, b) => (b ? Math.round(((a - b) / b) * 1000) / 10 : null);\nconst colorOf = n => (n === null || n === undefined) ? MUTED : (n < 0 ? RED : GREEN);\nconst dayLabel = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', timeZone: 'UTC' });\nconst dateLabel = iso => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });\n\n// ---- key figures ----\nconst kpi = (label, value, sub, color) =>\n  '<td width=\"25%\" valign=\"top\" style=\"padding:4px\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px\"><tr><td style=\"padding:10px 12px\">' +\n  '<div style=\"font-size:11px;color:' + MUTED + ';text-transform:uppercase\">' + label + '</div>' +\n  '<div style=\"font-size:18px;font-weight:bold;color:' + INK + ';padding:2px 0\">' + value + '</div>' +\n  '<div style=\"font-size:12px;color:' + color + '\">' + sub + '</div></td></tr></table></td>';\nconst marginDiff = (cur.grossMarginPct != null && prev.grossMarginPct != null) ? Math.round((cur.grossMarginPct - prev.grossMarginPct) * 10) / 10 : null;\nconst ordersChg = chg(cur.orders, prev.orders), aovChg = chg(cur.averageOrderValue, prev.averageOrderValue);\nconst kpis = '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr>' +\n  kpi('Revenue', currency + ' ' + fmt(cur.revenue), pct(d.revenueChangePct) + ' vs last week', colorOf(d.revenueChangePct)) +\n  kpi('Orders', fmt(cur.orders), pct(ordersChg) + ' vs last week', colorOf(ordersChg)) +\n  kpi('Avg order', currency + ' ' + fmt(cur.averageOrderValue), pct(aovChg) + ' vs last week', colorOf(aovChg)) +\n  kpi('Gross margin', cur.grossMarginPct == null ? 'n/a' : cur.grossMarginPct + '%', marginDiff == null ? 'no cost data' : (marginDiff > 0 ? '+' : '') + marginDiff + ' pts vs last week', colorOf(marginDiff)) +\n  '</tr></table>';\n\n// ---- chart 1: revenue by day, this week vs last week ----\nconst days = d.dailyRevenue || [];\nconst maxV = Math.max(1, ...days.map(x => Math.max(x.revenue, x.previous)));\nconst barH = v => Math.max(2, Math.round((v / maxV) * 120));\nconst bar = (v, color) => '<td valign=\"bottom\" style=\"padding:0 1px\"><table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"14\"><tr><td height=\"' + barH(v) + '\" bgcolor=\"' + color + '\" style=\"height:' + barH(v) + 'px;line-height:' + barH(v) + 'px;font-size:0\">&nbsp;</td></tr></table></td>';\nconst dayChart = '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr valign=\"bottom\">' +\n  days.map(x => '<td align=\"center\" valign=\"bottom\" width=\"14%\"><div style=\"font-size:10px;color:' + MUTED + ';padding-bottom:2px\">' + short(x.revenue) + '</div>' +\n    '<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" align=\"center\"><tr valign=\"bottom\">' + bar(x.previous, GREY) + bar(x.revenue, BLUE) + '</tr></table></td>').join('') +\n  '</tr><tr>' + days.map(x => '<td align=\"center\" style=\"font-size:11px;color:' + MUTED + ';padding-top:4px;border-top:1px solid #e2e8f0\">' + dayLabel(x.date) + '</td>').join('') + '</tr></table>' +\n  '<div style=\"font-size:12px;color:' + MUTED + ';padding-top:8px\"><span style=\"color:' + GREY + '\">&#9632;</span> Last week &nbsp; <span style=\"color:' + BLUE + '\">&#9632;</span> This week</div>';\n\n// ---- horizontal bars ----\nconst hbars = (items, color) => {\n  const max = Math.max(1, ...items.map(i => i.value));\n  return '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">' + items.map(i => {\n    const w = Math.max(2, Math.round(i.value / max * 100));\n    return '<tr><td style=\"padding:6px 0 2px;font-size:13px;color:' + INK + '\">' + esc(i.label) + '</td><td align=\"right\" style=\"padding:6px 0 2px;font-size:12px;color:' + MUTED + '\">' + esc(i.text) + '</td></tr>' +\n      '<tr><td colspan=\"2\" style=\"padding:0 0 4px\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" bgcolor=\"#f1f5f9\"><tr><td width=\"' + w + '%\" height=\"10\" bgcolor=\"' + color + '\" style=\"height:10px;line-height:10px;font-size:0\">&nbsp;</td><td style=\"font-size:0\">&nbsp;</td></tr></table></td></tr>';\n  }).join('') + '</table>';\n};\nconst products = (d.topProducts || []).map(p => ({ label: p.product, value: p.revenue, text: currency + ' ' + fmt(p.revenue) + ' - ' + fmt(p.quantitySold) + ' units' }));\nconst catTotal = (d.categories || []).reduce((s, c) => s + c.revenue, 0) || 1;\nconst categories = (d.categories || []).map(c => ({ label: c.category, value: c.revenue, text: currency + ' ' + fmt(c.revenue) + ' - ' + Math.round(c.revenue / catTotal * 100) + '%' }));\n\n// ---- highlights from the numbers (always present, even if the AI step returns nothing) ----\nconst hl = [];\nhl.push('Revenue was ' + currency + ' ' + fmt(cur.revenue) + (d.revenueChangePct == null ? '.' : ', ' + (d.revenueChangePct < 0 ? 'down ' : 'up ') + Math.abs(d.revenueChangePct) + '% on last week (' + currency + ' ' + fmt(prev.revenue) + ').'));\nconst active = days.filter(x => x.revenue > 0);\nif (active.length) {\n  const best = active.reduce((a, b) => b.revenue > a.revenue ? b : a), worst = active.reduce((a, b) => b.revenue < a.revenue ? b : a);\n  hl.push('Best day: ' + dayLabel(best.date) + ' (' + currency + ' ' + fmt(best.revenue) + '). Quietest day with sales: ' + dayLabel(worst.date) + ' (' + currency + ' ' + fmt(worst.revenue) + ').');\n}\nif ((d.topProducts || []).length && cur.revenue > 0) hl.push(d.topProducts[0].product + ' was the top product with ' + Math.round(d.topProducts[0].revenue / cur.revenue * 100) + '% of revenue.');\nif ((d.categories || []).length) hl.push('Biggest category: ' + d.categories[0].category + ' (' + Math.round(d.categories[0].revenue / catTotal * 100) + '% of revenue).');\nconst highlights = '<ul style=\"margin:0;padding-left:18px;font-size:14px;line-height:1.6;color:' + INK + '\">' + hl.map(h => '<li>' + esc(h) + '</li>').join('') + '</ul>';\n\n// ---- written analysis from Gemini ----\nconst g = $input.first().json;\nlet ai = ((g.candidates && g.candidates[0] && g.candidates[0].content && g.candidates[0].content.parts) || []).map(p => p.text || '').join('');\nai = ai.replace(/^\\s*```(?:html)?\\s*/i, '').replace(/\\s*```\\s*$/, '').replace(/<\\/?(html|head|body)[^>]*>/gi, '').replace(/<script[\\s\\S]*?<\\/script>/gi, '').replace(/<style[\\s\\S]*?<\\/style>/gi, '').trim();\nif (!ai) ai = '<p style=\"color:' + MUTED + '\">The written analysis was not available this week. The charts and highlights above are based on your sales data.</p>';\n\nconst section = (title, body) => '<tr><td style=\"padding:16px 24px 4px\"><div style=\"font-size:15px;font-weight:bold;color:' + INK + ';padding-bottom:8px\">' + title + '</div>' + body + '</td></tr>';\nconst rc = d.revenueChangePct;\nconst isAlert = rc != null && rc < -20;\nconst stripe = rc == null ? '#94a3b8' : (isAlert ? RED : (rc < 0 ? AMBER : GREEN));\nconst headline = d.revenueChangePct == null ? 'Weekly sales report' : (d.revenueChangePct < 0 ? 'Revenue down ' : 'Revenue up ') + Math.abs(d.revenueChangePct) + '%';\n\nconst html =\n  '<div style=\"background:#f1f5f9;padding:16px 0;font-family:Arial,Helvetica,sans-serif\">' +\n  '<table role=\"presentation\" width=\"640\" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:100%;background:#ffffff;border-radius:8px\">' +\n  '<tr><td height=\"4\" bgcolor=\"' + stripe + '\" style=\"height:4px;font-size:0;line-height:4px\">&nbsp;</td></tr>' +\n  '<tr><td style=\"background:' + INK + ';padding:18px 24px\"><div style=\"font-size:12px;color:#94a3b8;text-transform:uppercase\">' + (isAlert ? 'Sales alert' : 'Weekly sales report') + '</div>' +\n  '<div style=\"font-size:22px;font-weight:bold;color:#ffffff;padding:2px 0\">' + esc(biz.businessName || 'Your business') + ': ' + headline + '</div>' +\n  '<div style=\"font-size:12px;color:#94a3b8\">' + dateLabel(cur.start) + ' to ' + dateLabel(cur.end) + ' (compared with the 7 days before)</div></td></tr>' +\n  '<tr><td style=\"padding:16px 20px 0\">' + kpis + '</td></tr>' +\n  section('Revenue by day', dayChart) +\n  section('Top products', hbars(products, INDIGO)) +\n  (categories.length ? section('Revenue by category', hbars(categories, TEAL)) : '') +\n  section('Highlights', highlights) +\n  section(isAlert ? 'What happened and what to do' : 'Analysis', '<div style=\"font-size:14px;line-height:1.5;color:' + INK + '\">' + ai + '</div>') +\n  '<tr><td style=\"padding:16px 24px 20px;font-size:11px;color:' + MUTED + '\">Generated automatically. Amounts are in ' + esc(currency) + ', after discounts.</td></tr>' +\n  '</table></div>';\n\nreturn [{ json: { html } }];\n"
+      },
+      "id": "d7eae881-b385-4bb7-9704-808d87aa714d",
+      "name": "Build Visual Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        -48
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking \u2018Execute workflow\u2019": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Summarize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Build Visual Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Report Email": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Visual Email": {
+      "main": [
+        [
+          {
+            "node": "Send Report Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "DxCYN4maX9brRQlA",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "id": "G3CIZhRZhCPHiGHA",
+  "tags": []
+}

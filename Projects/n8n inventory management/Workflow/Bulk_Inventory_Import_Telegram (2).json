@@ -1,0 +1,1308 @@
+{
+  "name": "Bulk Inventory Import (Telegram)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "5d9fac93-60ee-4500-8009-079889cfcb5c",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "3b6d4ac2-efdd-40b4-ad75-c363f9826314"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== EDIT THESE TWO LINES =====\nconst ALLOWED_CHAT_IDS = ['REPLACE_WITH_MANAGER_CHAT_ID']; // send /myid to the bot to find a chat ID\nconst MANAGER_EMAIL = 'pv191130@gmail.com';\nconst MUTE_ALERT_EMAILS_DURING_FILE_IMPORT = true; // true: no per-row low-stock emails for file imports (they are listed in the summary instead)\n// ================================\nconst esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst msg = $input.first().json.message || {};\nconst chatId = msg.chat && msg.chat.id !== undefined ? String(msg.chat.id) : '';\nconst text = String(msg.text || msg.caption || '').trim();\nconst lower = text.toLowerCase();\nconst who = msg.from ? [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ') || msg.from.username || '' : '';\nconst base = { chat_id: chatId, manager_email: MANAGER_EMAIL, requester: who, dry_run: false, is_single: false, suppress_alerts: false, query_type: '', query_term: '', rows: [], update_id: '', file_id: '', file_name: '', ext: '', reply_text: '', ack_text: '' };\n\nif (lower.startsWith('/myid')) return [{ json: Object.assign(base, { route: 'reply', reply_text: 'Your chat ID is ' + esc(chatId) + '. Give this number to whoever manages the workflow so you can be authorised.' }) }];\nif (!ALLOWED_CHAT_IDS.map(String).includes(chatId)) return [{ json: Object.assign(base, { route: 'reply', reply_text: 'Sorry, this chat is not authorised to change inventory. Send /myid to get your chat ID and ask the administrator to add it.' }) }];\n\nconst help = 'Inventory bot\\n\\n' +\n  'Quick changes: just type a message\\n' +\n  '  add 20 bread\\n  remove 5 milk\\n  set 30 bread\\n  create Bottled Water 100 bottle 20\\n' +\n  'You can use a Product ID instead of a name, e.g. add 20 P001.\\n' +\n  'Start with dry run to test without changing anything, e.g. dry run remove 5 milk.\\n\\n' +\n  'Questions you can ask:\\n  stock bread  (or: how much bread do we have?)\\n  low stock\\n  list\\n  history  or  history bread\\n\\n' +\n  'Bulk changes: send a CSV or Excel file (.csv, .xls, .xlsx) as a File (paperclip, File).\\n' +\n  'Columns: Action, Product ID, Item name, Quantity, Unit, Reorder level, Request ID (optional).\\n' +\n  'Put dry run in the caption to check a file without changing stock.';\nconst doc = msg.document;\nif (!doc) {\n  const updateId = $input.first().json.update_id;\n  let s = text.replace(/^\\/(?=\\w)/, '').replace(/^(\\w+)@\\w+/, '$1').trim();\n  let dry = false;\n  const dm = s.match(/^dry[\\s_-]?run\\s*:?\\s+(.*)$/i);\n  if (dm) { dry = true; s = dm[1].trim(); }\n  const q = (() => {\n    const clean = t => t.replace(/\\?+$/, '').replace(/\\b(do we have|is left|are left|in stock|remaining|left)\\b/ig, '').replace(/\\s+/g, ' ').trim();\n    let mm;\n    if (/^(low|low[\\s-]?stock|what(?:'s| is| are)? (?:running )?low|running low|reorder)\\b/i.test(s)) return { type: 'low', term: '' };\n    if (/^(list|inventory|all stock|stock list|all|stock|report)\\??$/i.test(s)) return { type: 'list', term: '' };\n    if ((mm = s.match(/^(?:history|log|recent|changes)(?:\\s+(.+))?$/i))) return { type: 'history', term: mm[1] ? clean(mm[1]) : '' };\n    if ((mm = s.match(/^(?:stock|check|qty|level)\\s+(?:of\\s+)?(.+)$/i))) return { type: 'stock', term: clean(mm[1]) };\n    if ((mm = s.match(/^(?:how much|how many)\\s+(.+)$/i))) return { type: 'stock', term: clean(mm[1]) };\n    if ((mm = s.match(/^do we have\\s+(.+)$/i))) return { type: 'stock', term: clean(mm[1]) };\n    return null;\n  })();\n  if (q) return [{ json: Object.assign(base, { route: 'query', query_type: q.type, query_term: q.term }) }];\n  const mkRow = (action, qty, name, unit, reorder) => {\n    const n = name.trim();\n    const isId = /^P\\d+$/i.test(n);\n    return { 'Action': action.toLowerCase(), 'Product ID': isId ? n.toUpperCase() : '', 'Item name': isId ? '' : n,\n             'Quantity': qty, 'Unit': unit || '', 'Reorder level': reorder || '', 'Request ID': 'TG-' + updateId };\n  };\n  let row = null, m;\n  if ((m = s.match(/^(add|remove|set)\\s+(\\d+(?:\\.\\d+)?)\\s+(.+)$/i))) row = mkRow(m[1], m[2], m[3]);\n  else if ((m = s.match(/^(add|remove|set)\\s+(.+?)\\s+(\\d+(?:\\.\\d+)?)$/i))) row = mkRow(m[1], m[3], m[2]);\n  else if ((m = s.match(/^create\\s+(.+?)\\s+(\\d+(?:\\.\\d+)?)\\s+(\\S+)\\s+(\\d+(?:\\.\\d+)?)$/i))) row = mkRow('create', m[2], m[1], m[3], m[4]);\n  if (!row) {\n    const looksLikeCommand = /^(add|remove|set|create)\\b/i.test(s);\n    return [{ json: Object.assign(base, { route: 'reply', reply_text: (looksLikeCommand ? 'I could not read that command.\\n\\n' : '') + help }) }];\n  }\n  return [{ json: Object.assign(base, { route: 'single', dry_run: dry, is_single: true, rows: [row], file_name: 'Chat command', update_id: String(updateId) }) }];\n}\n\nconst fileName = String(doc.file_name || '');\nconst ext = fileName.split('.').pop().toLowerCase();\nif (!['csv', 'xls', 'xlsx'].includes(ext)) return [{ json: Object.assign(base, { route: 'reply', reply_text: 'I can only read .csv, .xls or .xlsx files. Received: ' + esc(fileName || 'unknown file') }) }];\n\nconst dry = /dry[\\s_-]?run|validate only|test only/.test(lower);\nreturn [{ json: Object.assign(base, {\n  route: 'import', dry_run: dry, suppress_alerts: MUTE_ALERT_EMAILS_DURING_FILE_IMPORT, file_id: doc.file_id, file_name: fileName, ext,\n  ack_text: (dry ? 'Dry run: checking ' : 'Importing ') + esc(fileName) + (dry ? ' (no stock will be changed)...' : '...') + ' I will message you when it is done.'\n}) }];"
+      },
+      "id": "4cbf3b7b-96b7-4be5-b1a4-a477015dc853",
+      "name": "Route Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ca665eaa-2bfe-44e5-aaef-de5ad95701b9",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "import",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "import"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "10c20f42-8d53-4e86-9a8d-b189d07eb4c4",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "single",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "single"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "36ab8dff-d26a-403b-878c-2d28671ec4a2",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "query",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "query"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "05ffd033-b912-4e6e-99f9-561314e6c683",
+      "name": "Is Import?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "19cG1_rUlHffvh4vGRKtMO3aXNFd5m0mUd7kYfsc4vrc",
+          "cachedResultName": "Inventory Store"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "1753882792",
+          "cachedResultName": "Inventory"
+        },
+        "options": {}
+      },
+      "id": "15b9a52f-e025-43cd-9471-d4e9332a0427",
+      "name": "Query Read Inventory",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        704,
+        -300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "19cG1_rUlHffvh4vGRKtMO3aXNFd5m0mUd7kYfsc4vrc",
+          "cachedResultName": "Inventory Store"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "802504652",
+          "cachedResultName": "Inventory Change Log"
+        },
+        "options": {}
+      },
+      "id": "1cc332a4-a33f-4b05-aa1e-3e644c3e06d4",
+      "name": "Query Read Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        928,
+        -300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const route = $('Route Message').first().json;\nconst esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst str = v => (v === null || v === undefined) ? '' : String(v).trim();\nconst norm = v => str(v).toLowerCase();\nconst num = v => { const n = Number(String(v === null || v === undefined ? '' : v).replace(/,/g, '')); return Number.isFinite(n) ? n : NaN; };\nconst inv = $('Query Read Inventory').all().map(i => i.json).filter(r => str(r['Product ID']) !== '').map(r => ({\n  id: str(r['Product ID']), name: str(r['Item name']), qty: str(r['Quantity']), unit: str(r['Unit']),\n  reorder: str(r['Reorder level']), updated: str(r['Updated at'])\n}));\nconst isLow = p => { const q = num(p.qty), r = num(p.reorder); return Number.isFinite(q) && Number.isFinite(r) && q <= r; };\nconst line = p => p.name + ' (' + p.id + '): ' + p.qty + ' ' + p.unit + (isLow(p) ? ' - LOW, reorder level ' + p.reorder : (p.reorder ? ' - reorder level ' + p.reorder : ''));\nconst cap = (arr, max) => { let out = '', n = 0; for (const l of arr) { if ((out + '\\n' + l).length > max) break; out += (out ? '\\n' : '') + l; n++; } return out + (n < arr.length ? '\\n...and ' + (arr.length - n) + ' more.' : ''); };\nconst type = route.query_type, term = norm(route.query_term);\nlet text = '';\n\nif (inv.length === 0 && type !== 'history') {\n  text = 'The inventory is empty.';\n} else if (type === 'low') {\n  const low = inv.filter(isLow);\n  text = low.length ? 'Low stock (' + low.length + ' of ' + inv.length + ' products):\\n' + cap(low.map(line), 3600) : 'Nothing is at or below its reorder level. ' + inv.length + ' products checked.';\n} else if (type === 'list') {\n  text = 'Inventory (' + inv.length + ' products):\\n' + cap(inv.map(line), 3600);\n} else if (type === 'stock') {\n  if (!term) { text = 'Tell me which product, e.g. stock bread.'; }\n  else {\n    let hit = inv.filter(p => norm(p.id) === term || norm(p.name) === term);\n    if (hit.length === 0) hit = inv.filter(p => norm(p.name).includes(term) || term.includes(norm(p.name)) || norm(p.id).includes(term));\n    if (hit.length === 0) text = 'No product found for \"' + route.query_term + '\". Send list to see everything.';\n    else if (hit.length === 1) text = line(hit[0]) + (hit[0].updated ? '\\nLast updated: ' + hit[0].updated : '');\n    else text = 'Matches for \"' + route.query_term + '\":\\n' + cap(hit.map(line), 3600);\n  }\n} else if (type === 'history') {\n  const log = $input.all().map(i => i.json).filter(r => str(r['Request ID']) !== '' || str(r['Timestamp']) !== '');\n  let rows = log.slice().reverse();\n  if (term) rows = rows.filter(r => norm(r['Item name']).includes(term) || norm(r['Product ID']) === term);\n  rows = rows.slice(0, 10);\n  if (rows.length === 0) text = term ? 'No history found for \"' + route.query_term + '\".' : 'The change log is empty.';\n  else {\n    const fmt = r => {\n      const when = str(r['Timestamp']).slice(0, 16);\n      const who = str(r['Item name']) || str(r['Product ID']) || '-';\n      if (norm(r['Status']) === 'success') {\n        const ch = str(r['Change quantity']);\n        return when + ' ' + who + ' ' + str(r['Action']) + (ch ? ' (' + ch + ')' : '') + (str(r['New quantity']) ? ' -> ' + str(r['New quantity']) : '') + ' OK';\n      }\n      return when + ' ' + who + ' ' + str(r['Action']) + ' REJECTED: ' + str(r['Message']).slice(0, 80);\n    };\n    text = (term ? 'Recent changes for \"' + route.query_term + '\"' : 'Recent changes') + ' (newest first):\\n' + cap(rows.map(fmt), 3600);\n  }\n}\nreturn [{ json: { chat_id: route.chat_id, reply_text: esc(text) } }];"
+      },
+      "id": "88b743f2-bfa3-4296-8046-229136f4b2bb",
+      "name": "Answer Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "0c234859-11e6-43a1-b6e7-8d0c0879a9e0",
+      "name": "Send Answer",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1376,
+        -300
+      ],
+      "webhookId": "528a0035-1587-4525-8778-4cbf236c79bc"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "7f1648c5-ec6e-4704-a84d-ac280bfc4a47",
+      "name": "Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        704,
+        520
+      ],
+      "webhookId": "890adf10-4153-44c6-a9e4-b671fa1131ec"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.ack_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "469dbc4f-480e-47e9-aec0-895d8bf0ef77",
+      "name": "Acknowledge",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        704,
+        200
+      ],
+      "webhookId": "729e7cd0-f9eb-4ffb-801f-665234600896"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $('Route Message').first().json.file_id }}",
+        "download": true
+      },
+      "id": "c2e54f0c-56f8-4c7a-b319-0265b5f666c6",
+      "name": "Download File",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        928,
+        200
+      ],
+      "webhookId": "9a1f7070-404f-40e4-85b2-6bcc2509e0ac"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "9847f608-ca4d-46d6-849e-78d473b3f5cd",
+                    "leftValue": "={{ $('Route Message').first().json.ext }}",
+                    "rightValue": "csv",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "csv"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5bbacb9d-c366-4da9-a194-c534e20f52fe",
+                    "leftValue": "={{ $('Route Message').first().json.ext }}",
+                    "rightValue": "xlsx",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "xlsx"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c4d320f4-5f86-4090-a0e9-bd78ebdde6fa",
+                    "leftValue": "={{ $('Route Message').first().json.ext }}",
+                    "rightValue": "xls",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "xls"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e0ce2215-598c-44d2-a447-eceae5e0702e",
+      "name": "File Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1152,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "csv",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "599670bf-58a4-4383-a96f-00e5c6536910",
+      "name": "Extract CSV",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1408,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "7331a34f-edd4-41b9-a219-74a2171ccbc1",
+      "name": "Extract XLSX",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1408,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "xls",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "9a6d7604-b29f-43fc-8a66-62173ccdbed2",
+      "name": "Extract XLS",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1408,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst fileName = $('Route Message').first().json.file_name;\nconst text = JSON.stringify(rows);\nlet h = 5381;\nfor (let i = 0; i < text.length; i++) { h = ((h * 33) ^ text.charCodeAt(i)) >>> 0; }\nconst sig = h.toString(36).toUpperCase();\nreturn [{ json: { rows, file_name: fileName, file_sig: sig } }];"
+      },
+      "id": "cc771e17-8814-4567-8644-2be973977611",
+      "name": "Collect Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $('Route Message').first().json;\nreturn [{ json: { rows: r.rows, file_name: 'Chat command', file_sig: 'CMD' } }];"
+      },
+      "id": "8543b08f-75c2-4133-adbe-0083ed2a6935",
+      "name": "Single Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "19cG1_rUlHffvh4vGRKtMO3aXNFd5m0mUd7kYfsc4vrc",
+          "cachedResultName": "Inventory Store"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "802504652",
+          "cachedResultName": "Inventory Change Log"
+        },
+        "options": {}
+      },
+      "id": "6e39136d-32ae-448a-8afa-0b03ea40d78e",
+      "name": "Read Change Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1888,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "19cG1_rUlHffvh4vGRKtMO3aXNFd5m0mUd7kYfsc4vrc",
+          "cachedResultName": "Inventory Store"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "1753882792",
+          "cachedResultName": "Inventory"
+        },
+        "options": {}
+      },
+      "id": "7bfa6c36-ff69-4c95-a41d-489f1da127b2",
+      "name": "Read Inventory",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2112,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const route = $('Route Message').first().json;\nconst dry = !!route.dry_run;\nlet collected;\ntry { collected = $('Single Command').first().json; } catch (e) { collected = $('Collect Rows').first().json; }\nconst sig = collected.file_sig;\nconst rows = collected.rows || [];\nconst MAX_ROWS = 500;\nconst now = $now.toFormat('yyyy-MM-dd HH:mm:ss');\nconst str = v => (v === null || v === undefined) ? '' : String(v).trim();\nconst norm = v => str(v).toLowerCase();\nconst keyOf = k => String(k).toLowerCase().replace(/[^a-z0-9]/g, '');\nconst get = (row, ...names) => { for (const k of Object.keys(row)) { if (names.includes(keyOf(k))) return row[k]; } return ''; };\nconst parseNum = v => { const s = String(v === null || v === undefined ? '' : v).replace(/,/g, '').replace(/[^0-9.\\-]/g, ''); if (s === '' || s === '-' || s === '.') return NaN; return Number(s); };\n\n// Only rows that already SUCCEEDED block a re-upload; rejected rows may be retried.\nconst done = new Set($('Read Change Log').all().map(i => i.json)\n  .filter(r => norm(r['Status']) === 'success')\n  .map(r => str(r['Request ID'])).filter(Boolean));\n\n// Working copy of inventory so later rows in the file see the effect of earlier ones.\nconst inv = $input.all().map(i => i.json).filter(r => str(r['Product ID']) !== '').map(r => ({\n  id: str(r['Product ID']), name: str(r['Item name']), qty: parseNum(r['Quantity']),\n  unit: str(r['Unit']), reorder: parseNum(r['Reorder level'])\n}));\n\nconst mk = o => ({ json: Object.assign({\n  row_number: '', request_id: '', source: 'Telegram Bulk Upload', action: '', timestamp: now,\n  product_id: '', item_name: '', quantity: '', unit: '', reorder_level: '',\n  pre_rejected: false, status: '', message: '', file_name: collected.file_name,\n  dry_run: dry, sim_status: '', sim_message: ''\n}, o) });\nconst fail = (base, msg, pre) => mk(Object.assign({}, base, { pre_rejected: !!pre, status: 'Rejected', message: msg, sim_status: 'Rejected', sim_message: msg }));\n\nif (rows.length === 0) return [fail({ action: 'bulk', request_id: 'BULK-' + sig + '-EMPTY' }, 'The uploaded file has no data rows.', true)];\nif (rows.length > MAX_ROWS) return [fail({ action: 'bulk', request_id: 'BULK-' + sig + '-TOOBIG' }, 'The file has ' + rows.length + ' rows; the limit is ' + MAX_ROWS + '. Nothing was processed.', true)];\n\nconst generic = ['', 'unit', 'units', 'item', 'items', 'pc', 'pcs', 'piece', 'pieces'];\nconst listP = l => l.map(p => p.id + ' ' + p.name + ' (' + p.qty + ' ' + p.unit + ')').join(', ');\nconst out = [];\nconst seen = new Set();\n\nrows.forEach((row, idx) => {\n  const n = idx + 2;\n  if (Object.values(row).every(v => str(v) === '')) return;\n  const requestId = str(get(row, 'requestid')) || ('BULK-' + sig + '-R' + n);\n  const base = {\n    row_number: n, request_id: requestId, action: norm(get(row, 'action')),\n    product_id: str(get(row, 'productid')),\n    item_name: str(get(row, 'itemname', 'item', 'product', 'productname')),\n    quantity: str(get(row, 'quantity', 'qty')), unit: str(get(row, 'unit')),\n    reorder_level: str(get(row, 'reorderlevel', 'reorder'))\n  };\n  if (done.has(requestId)) { out.push(fail(base, 'Duplicate: Request ID ' + requestId + ' was already processed successfully. Row skipped.', true)); return; }\n  if (seen.has(requestId)) { out.push(fail(base, 'Duplicate Request ID ' + requestId + ' appears more than once in this file. Row skipped.', true)); return; }\n  seen.add(requestId);\n\n  const action = base.action;\n  if (!['set', 'add', 'remove', 'create'].includes(action)) { out.push(fail(base, 'Unknown action \"' + str(get(row, 'action')) + '\". Use set, add, remove or create.', false)); return; }\n  const qty = parseNum(base.quantity);\n  if (!Number.isFinite(qty)) { out.push(fail(base, 'The quantity is missing or not a number.', false)); return; }\n  if ((action === 'set' || action === 'create') && qty < 0) { out.push(fail(base, 'Stock cannot be negative.', false)); return; }\n  if ((action === 'add' || action === 'remove') && qty <= 0) { out.push(fail(base, 'The quantity to ' + action + ' must be greater than zero.', false)); return; }\n\n  if (action === 'create') {\n    if (!base.item_name) { out.push(fail(base, 'A product name is required to register a new product.', false)); return; }\n    if (!base.unit) { out.push(fail(base, 'A unit (e.g. loaf, litre, crate) is required to register a new product.', false)); return; }\n    const reorder = parseNum(base.reorder_level);\n    if (!Number.isFinite(reorder) || reorder < 0) { out.push(fail(base, 'A valid reorder level (0 or more) is required to register a new product.', false)); return; }\n    const dup = inv.filter(p => norm(p.name) === norm(base.item_name) || (base.product_id && norm(p.id) === norm(base.product_id)));\n    if (dup.length) { out.push(fail(base, 'This product already exists: ' + listP(dup) + '. No new row was created.', false)); return; }\n    let maxN = 0;\n    inv.forEach(p => { const m = p.id.match(/(\\d+)$/); if (m) maxN = Math.max(maxN, Number(m[1])); });\n    const newId = 'P' + String(maxN + 1).padStart(3, '0');\n    inv.push({ id: newId, name: base.item_name, qty, unit: base.unit, reorder });\n    const low = qty <= reorder;\n    out.push(mk(Object.assign({}, base, { product_id: '', sim_status: 'OK', sim_message: 'Would register ' + base.item_name + ' as ' + newId + ' with ' + qty + ' ' + base.unit + (low ? ' (LOW STOCK)' : '') })));\n    return;\n  }\n\n  // update actions: resolve by Product ID, else by exact name\n  let matches = [];\n  if (base.product_id) matches = inv.filter(p => norm(p.id) === norm(base.product_id));\n  else if (base.item_name) matches = inv.filter(p => norm(p.name) === norm(base.item_name));\n  else { out.push(fail(base, 'No product specified. Give a Product ID or the exact Item name.', true)); return; }\n  if (matches.length === 0) {\n    const term = base.product_id || base.item_name;\n    const nm = norm(base.item_name);\n    const partial = nm ? inv.filter(p => norm(p.name).includes(nm) || nm.includes(norm(p.name))) : [];\n    out.push(fail(base, 'Product not found: \"' + term + '\".' + (partial.length ? ' Possible matches: ' + listP(partial) + '.' : '') + ' Nothing was changed.', true)); return;\n  }\n  if (matches.length > 1) { out.push(fail(base, 'More than one inventory row matches: ' + listP(matches) + '. Use the Product ID. Nothing was changed.', true)); return; }\n  const p = matches[0];\n  base.product_id = p.id; base.item_name = p.name; // resolved, so the engine gets an exact ID\n  if (!Number.isFinite(p.qty)) { out.push(fail(base, 'The current stock for ' + p.name + ' in the sheet is not a valid number. Fix the sheet before updating.', false)); return; }\n  const unitReq = norm(base.unit); const rowUnit = norm(p.unit);\n  if (!generic.includes(unitReq) && rowUnit && unitReq.slice(0, 3) !== rowUnit.slice(0, 3)) { out.push(fail(base, 'Unit mismatch: ' + p.name + ' is tracked in ' + p.unit + ', but the row used \"' + base.unit + '\".', false)); return; }\n  let newQty;\n  if (action === 'set') newQty = qty; else if (action === 'add') newQty = p.qty + qty; else newQty = p.qty - qty;\n  if (newQty < 0) { out.push(fail(base, 'Only ' + p.qty + ' ' + p.unit + ' of ' + p.name + ' available, cannot remove ' + qty + '. Nothing was changed.', false)); return; }\n  const prev = p.qty; p.qty = newQty;\n  const low = Number.isFinite(p.reorder) && newQty <= p.reorder;\n  out.push(mk(Object.assign({}, base, { sim_status: 'OK', sim_message: 'Would ' + action + ' ' + qty + ' ' + p.unit + ': ' + prev + ' -> ' + newQty + (low ? ' (LOW STOCK)' : '') })));\n});\n\nif (out.length === 0) return [fail({ action: 'bulk', request_id: 'BULK-' + sig + '-EMPTY' }, 'The uploaded file has no data rows.', true)];\nreturn out;"
+      },
+      "id": "be5fdcc8-d72f-4989-a752-6e9194d2fe23",
+      "name": "Prepare Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b464d4f5-db93-4672-b497-cc3d1964bbb8",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1ebd8e65-7d86-417e-be66-ed3bf5836ae4",
+      "name": "Dry Run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2560,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e325729f-ed41-4ea7-ac91-fe399d4e3962",
+              "leftValue": "={{ $json.pre_rejected }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9c3d97e6-1e9a-4f7c-9bb7-87441a2cd1d3",
+      "name": "Pre-Rejected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2784,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "19cG1_rUlHffvh4vGRKtMO3aXNFd5m0mUd7kYfsc4vrc",
+          "cachedResultName": "Inventory Store"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "802504652",
+          "cachedResultName": "Inventory Change Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.timestamp }}",
+            "Request ID": "={{ $json.request_id }}",
+            "Product ID": "={{ $json.product_id }}",
+            "Item name": "={{ $json.item_name }}",
+            "Action": "={{ $json.action }}",
+            "Previous quantity": "",
+            "Change quantity": "",
+            "New quantity": "",
+            "Status": "={{ $json.status }}",
+            "Message": "={{ $json.message }}",
+            "Request source": "={{ $json.source }}"
+          },
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Request ID",
+              "displayName": "Request ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Product ID",
+              "displayName": "Product ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Item name",
+              "displayName": "Item name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Action",
+              "displayName": "Action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Previous quantity",
+              "displayName": "Previous quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Change quantity",
+              "displayName": "Change quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "New quantity",
+              "displayName": "New quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Message",
+              "displayName": "Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Request source",
+              "displayName": "Request source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "fc339a3c-06f2-4ce1-b8ea-ca8bf1973f4c",
+      "name": "Log Pre-Rejection",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3008,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "If3iTuRB4OTfkRLZ",
+          "mode": "list",
+          "cachedResultName": "Inventory Stock Update Engine"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "action": "={{ $json.action }}",
+            "product_id": "={{ $json.product_id }}",
+            "item_name": "={{ $json.item_name }}",
+            "quantity": "={{ $json.quantity }}",
+            "unit": "={{ $json.unit }}",
+            "reorder_level": "={{ $json.reorder_level }}",
+            "request_id": "={{ $json.request_id }}",
+            "source": "={{ $json.source }}",
+            "suppress_alert": "={{ $('Route Message').first().json.suppress_alerts ? 'true' : 'false' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "product_id",
+              "displayName": "product_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "item_name",
+              "displayName": "item_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "quantity",
+              "displayName": "quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "unit",
+              "displayName": "unit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "reorder_level",
+              "displayName": "reorder_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "request_id",
+              "displayName": "request_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "suppress_alert",
+              "displayName": "suppress_alert",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "ffbf6746-eef9-49f9-a0ad-accd80d66d0f",
+      "name": "Call Engine",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3008,
+        440
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "5ad167f6-82ef-4b89-9484-bbaf150914f9",
+      "name": "Wait For Both",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        3232,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const route = $('Route Message').first().json;\nconst dry = !!route.dry_run;\nconst esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst prep = $('Prepare Rows').all().map(i => i.json);\nconst details = [];\nlet ok = 0, rej = 0;\nconst lowItems = [];\nif (dry) {\n  prep.forEach(r => {\n    const good = r.sim_status === 'OK';\n    if (good) ok++; else rej++;\n    details.push({ row: r.row_number, good, item: r.item_name || r.product_id, message: r.sim_message });\n  });\n} else {\n  const pre = prep.filter(r => r.pre_rejected);\n  const toRun = prep.filter(r => !r.pre_rejected);\n  let results = [];\n  try { results = $('Call Engine').all().map(i => i.json); } catch (e) { results = []; }\n  pre.forEach(r => { rej++; details.push({ row: r.row_number, good: false, item: r.item_name || r.product_id, message: r.message }); });\n  toRun.forEach((r, i) => {\n    const res = results[i] || {};\n    const good = res.status === 'Success';\n    if (good) ok++; else rej++;\n    if (good && res.low_stock) lowItems.push((res.item_name || r.item_name) + ': ' + res.new_quantity + ' ' + (res.unit || '') + ' (reorder level ' + res.reorder_level + ')');\n    details.push({ row: r.row_number, good, item: res.item_name || r.item_name || r.product_id, message: res.message || res.error || 'No response from the Inventory Stock Update Engine for this row.' });\n  });\n}\ndetails.sort((a, b) => Number(a.row || 0) - Number(b.row || 0));\nif (route.is_single && details.length === 1) {\n  const d = details[0];\n  const t = (dry ? 'DRY RUN - nothing was changed\\n' : '') + (d.good ? 'OK: ' : 'REJECTED: ') + d.message;\n  return [{ json: { telegram_text: esc(t), email_subject: '', email_body: t, chat_id: route.chat_id, manager_email: route.manager_email, total: 1, ok, rejected: rej, dry_run: dry, is_single: true } }];\n}\nconst fileName = prep.length ? prep[0].file_name : '';\nconst title = dry ? 'DRY RUN - nothing was changed' : 'Import finished';\nconst okWord = dry ? 'Would succeed' : 'Succeeded';\nconst rejWord = dry ? 'Would be rejected' : 'Rejected';\nconst head = [title, 'File: ' + fileName, 'Rows: ' + details.length, okWord + ': ' + ok, rejWord + ': ' + rej, ''];\nconst lines = details.map(d => 'Row ' + d.row + (d.good ? ' OK' : ' REJECTED') + (d.item ? ' - ' + d.item : '') + ': ' + d.message);\nconst lowText = lowItems.length ? '\\n\\nLow stock after this import:\\n' + lowItems.map(x => '- ' + x).join('\\n') : '';\nconst footer = lowText + (dry ? '\\nIf this looks right, send the same file again without \"dry run\" to apply it.' : '');\nconst emailBody = head.join('\\n') + lines.join('\\n') + footer;\nlet tg = head.join('\\n'); const room = Math.max(1500, 3700 - footer.length);\nlet shown = 0;\nfor (const l of lines) { if ((tg + '\\n' + l).length > room) break; tg += '\\n' + l; shown++; }\nif (shown < lines.length) tg += '\\n...and ' + (lines.length - shown) + ' more rows (see the email for the full list).';\ntg += footer;\nreturn [{ json: {\n  telegram_text: esc(tg),\n  email_subject: (dry ? '[DRY RUN] ' : '') + 'Bulk inventory import: ' + fileName + ' (' + ok + ' ok, ' + rej + ' rejected)',\n  email_body: emailBody, chat_id: route.chat_id, manager_email: route.manager_email,\n  total: details.length, ok, rejected: rej, dry_run: dry, is_single: false\n} }];"
+      },
+      "id": "6fe85a2c-5e78-4fbc-b2b4-53e5a7268474",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3456,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.telegram_text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "14015134-e412-438a-8ee6-532203c0e7c6",
+      "name": "Send Summary to Chat",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3680,
+        200
+      ],
+      "webhookId": "2e3ff4a0-b126-417f-8651-3c41d3743ba7"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9acdb7f8-ab78-41c8-98f0-ab8cab08ec87",
+              "leftValue": "={{ !$('Build Summary').first().json.is_single }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7c6c51f1-c3a0-41c5-b7a5-bfbb8febd263",
+      "name": "Send Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3904,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Build Summary').first().json.manager_email }}",
+        "subject": "={{ $('Build Summary').first().json.email_subject }}",
+        "emailType": "text",
+        "message": "={{ $('Build Summary').first().json.email_body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f6cec7e5-ea52-41bf-b2d5-df36469fe265",
+      "name": "Email Summary",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        4128,
+        120
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9MJX8ahvUvInShMW",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "webhookId": "55710bd1-8684-43b3-926b-c55d47b1c055"
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Route Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Message": {
+      "main": [
+        [
+          {
+            "node": "Is Import?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Import?": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Single Command",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Read Inventory",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Read Inventory": {
+      "main": [
+        [
+          {
+            "node": "Query Read Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Read Log": {
+      "main": [
+        [
+          {
+            "node": "Answer Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer Query": {
+      "main": [
+        [
+          {
+            "node": "Send Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Single Command": {
+      "main": [
+        [
+          {
+            "node": "Read Change Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acknowledge": {
+      "main": [
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File": {
+      "main": [
+        [
+          {
+            "node": "File Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File Type": {
+      "main": [
+        [
+          {
+            "node": "Extract CSV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract XLSX",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract XLS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract CSV": {
+      "main": [
+        [
+          {
+            "node": "Collect Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract XLSX": {
+      "main": [
+        [
+          {
+            "node": "Collect Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract XLS": {
+      "main": [
+        [
+          {
+            "node": "Collect Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Rows": {
+      "main": [
+        [
+          {
+            "node": "Read Change Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Change Log": {
+      "main": [
+        [
+          {
+            "node": "Read Inventory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Inventory": {
+      "main": [
+        [
+          {
+            "node": "Prepare Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Rows": {
+      "main": [
+        [
+          {
+            "node": "Dry Run?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run?": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pre-Rejected?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pre-Rejected?": {
+      "main": [
+        [
+          {
+            "node": "Log Pre-Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Pre-Rejection": {
+      "main": [
+        [
+          {
+            "node": "Wait For Both",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Engine": {
+      "main": [
+        [
+          {
+            "node": "Wait For Both",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait For Both": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Summary to Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Summary to Chat": {
+      "main": [
+        [
+          {
+            "node": "Send Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email?": {
+      "main": [
+        [
+          {
+            "node": "Email Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

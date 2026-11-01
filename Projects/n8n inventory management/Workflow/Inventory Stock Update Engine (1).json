@@ -1,0 +1,1052 @@
+{
+  "name": "Inventory Stock Update Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "action"
+            },
+            {
+              "name": "product_id"
+            },
+            {
+              "name": "item_name"
+            },
+            {
+              "name": "quantity"
+            },
+            {
+              "name": "unit"
+            },
+            {
+              "name": "reorder_level"
+            },
+            {
+              "name": "request_id"
+            },
+            {
+              "name": "source"
+            }
+          ]
+        }
+      },
+      "id": "6fb65a7e-534e-4c9e-bb95-4396096fcd47",
+      "name": "Stock Request",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "19cG1_rUlHffvh4vGRKtMO3aXNFd5m0mUd7kYfsc4vrc",
+          "cachedResultName": "Inventory Store"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "1753882792",
+          "cachedResultName": "Inventory"
+        },
+        "options": {}
+      },
+      "id": "eb4b0e6e-d2da-4cd7-93a9-775aa72a386e",
+      "name": "Read Inventory",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        288,
+        512
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const req = $('Stock Request').first().json;\nconst rows = $input.all().map(i => i.json).filter(r => r && String(r['Product ID'] || '').trim() !== '');\nconst norm = v => String(v === null || v === undefined ? '' : v).trim().toLowerCase();\nconst action = norm(req.action);\nconst pid = norm(req.product_id);\nconst name = norm(req.item_name);\nconst unitReq = norm(req.unit);\nconst now = $now.toFormat('yyyy-MM-dd HH:mm:ss');\nconst base = {\n  request_id: String(req.request_id || $execution.id),\n  source: req.source || 'Chat',\n  action: action,\n  timestamp: now,\n  product_id: String(req.product_id || '').trim(),\n  item_name: String(req.item_name || '').trim(),\n  previous_quantity: '',\n  change_quantity: '',\n  new_quantity: '',\n  unit: String(req.unit || '').trim(),\n  reorder_level: '',\n  low_stock: false,\n  alert_needed: false,\n  alert_flag: 'no',\n  route: 'rejected',\n  status: 'Rejected',\n  message: ''\n};\nfunction reject(msg, extra) {\n  return [{ json: Object.assign({}, base, extra || {}, { route: 'rejected', status: 'Rejected', alert_needed: false, message: msg }) }];\n}\nfunction listRows(list) {\n  return list.map(r => r['Product ID'] + ' ' + r['Item name'] + ' (' + r['Quantity'] + ' ' + r['Unit'] + ')').join(', ');\n}\nfunction parseNum(v) {\n  const s = String(v === null || v === undefined ? '' : v).replace(/,/g, '').replace(/[^0-9.\\-]/g, '');\n  if (s === '' || s === '-' || s === '.') return NaN;\n  return Number(s);\n}\nconst allowed = ['set', 'add', 'remove', 'create'];\nif (!allowed.includes(action)) return reject('Unknown action \"' + (req.action || '') + '\". Use set, add, remove or create.');\nconst qty = parseNum(req.quantity);\nif (!Number.isFinite(qty)) return reject('The quantity is missing or not a number. Ask the user for an exact numeric quantity.');\nif ((action === 'set' || action === 'create') && qty < 0) return reject('Stock cannot be negative.');\nif ((action === 'add' || action === 'remove') && qty <= 0) return reject('The quantity to ' + action + ' must be greater than zero.');\n\nif (action === 'create') {\n  if (!name) return reject('A product name is required to register a new product.');\n  if (!unitReq) return reject('A unit (e.g. loaf, litre, crate) is required to register a new product.');\n  const reorder = parseNum(req.reorder_level);\n  if (!Number.isFinite(reorder) || reorder < 0) return reject('A valid reorder level (0 or more) is required to register a new product.');\n  const dup = rows.filter(r => norm(r['Item name']) === name || (pid && norm(r['Product ID']) === pid));\n  if (dup.length) return reject('This product already exists: ' + listRows(dup) + '. No new row was created.');\n  let maxN = 0;\n  rows.forEach(r => { const m = String(r['Product ID']).match(/(\\d+)$/); if (m) maxN = Math.max(maxN, Number(m[1])); });\n  const newId = 'P' + String(maxN + 1).padStart(3, '0');\n  const lowNew = qty <= reorder;\n  return [{ json: Object.assign({}, base, {\n    route: 'create', status: 'Pending', product_id: newId, item_name: String(req.item_name).trim(),\n    previous_quantity: 0, change_quantity: qty, new_quantity: qty, unit: String(req.unit).trim(),\n    reorder_level: reorder, low_stock: lowNew, alert_needed: lowNew, alert_flag: lowNew ? 'yes' : 'no'\n  }) }];\n}\n\nlet matches = [];\nif (pid) matches = rows.filter(r => norm(r['Product ID']) === pid);\nelse if (name) matches = rows.filter(r => norm(r['Item name']) === name);\nelse return reject('No product was specified. Ask which product (Product ID or exact name).');\n\nif (matches.length === 0) {\n  const term = name || pid;\n  const partial = name ? rows.filter(r => norm(r['Item name']).includes(name) || name.includes(norm(r['Item name']))) : [];\n  return reject('Product not found: \"' + term + '\".' + (partial.length ? ' Possible matches: ' + listRows(partial) + '.' : '') + ' Ask whether to search again or register it as a new product. Nothing was changed.');\n}\nif (matches.length > 1) return reject('More than one inventory row matches: ' + listRows(matches) + '. Ask the user which Product ID to use. Nothing was changed.');\n\nconst row = matches[0];\nconst current = parseNum(row['Quantity']);\nif (!Number.isFinite(current)) return reject('The current stock for ' + row['Item name'] + ' in the sheet is not a valid number. Fix the sheet before updating.');\n\nconst generic = ['', 'unit', 'units', 'item', 'items', 'pc', 'pcs', 'piece', 'pieces'];\nconst rowUnit = norm(row['Unit']);\nif (!generic.includes(unitReq) && rowUnit && unitReq.slice(0, 3) !== rowUnit.slice(0, 3)) {\n  return reject('Unit mismatch: ' + row['Item name'] + ' is tracked in ' + row['Unit'] + ', but the request used \"' + req.unit + '\". Ask the user to confirm the quantity in ' + row['Unit'] + '.');\n}\n\nlet newQty;\nlet change;\nif (action === 'set') { newQty = qty; change = qty - current; }\nelse if (action === 'add') { newQty = current + qty; change = qty; }\nelse { newQty = current - qty; change = -qty; }\nnewQty = Math.round(newQty * 1000) / 1000;\nchange = Math.round(change * 1000) / 1000;\n\nconst ctx = { product_id: row['Product ID'], item_name: row['Item name'], unit: row['Unit'], previous_quantity: current, reorder_level: row['Reorder level'] };\nif (newQty < 0) {\n  return reject('Insufficient stock: only ' + current + ' ' + row['Unit'] + ' of ' + row['Item name'] + ' available, cannot remove ' + qty + '. Nothing was changed.', ctx);\n}\n\nconst reorderLevel = parseNum(row['Reorder level']);\nconst low = Number.isFinite(reorderLevel) && newQty <= reorderLevel;\nconst alreadyAlerted = norm(row['Low stock alerted']) === 'yes';\nreturn [{ json: Object.assign({}, base, ctx, {\n  route: 'update', status: 'Pending', change_quantity: change, new_quantity: newQty,\n  low_stock: low, alert_needed: low && !alreadyAlerted, alert_flag: low ? 'yes' : 'no'\n}) }];"
+      },
+      "id": "115e5a12-0559-4157-898d-acd47da0619d",
+      "name": "Validate and Calculate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "update",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Update existing"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "create",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Create new"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "rejected",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Rejected"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3149ceba-12d8-4b00-8e8e-81abc9fa48ab",
+      "name": "Route Request",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        736,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "19cG1_rUlHffvh4vGRKtMO3aXNFd5m0mUd7kYfsc4vrc",
+          "cachedResultName": "Inventory Store"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "1753882792",
+          "cachedResultName": "Inventory"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Product ID": "={{ $json.product_id }}",
+            "Quantity": "={{ $json.new_quantity }}",
+            "Low stock alerted": "={{ $json.alert_flag }}",
+            "Updated at": "={{ $json.timestamp }}"
+          },
+          "matchingColumns": [
+            "Product ID"
+          ],
+          "schema": [
+            {
+              "id": "Product ID",
+              "displayName": "Product ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Item name",
+              "displayName": "Item name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Quantity",
+              "displayName": "Quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Unit",
+              "displayName": "Unit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Reorder level",
+              "displayName": "Reorder level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Low stock alerted",
+              "displayName": "Low stock alerted",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated at",
+              "displayName": "Updated at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "81fb155a-df68-4111-b025-919f073ffd16",
+      "name": "Update Stock Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        960,
+        256
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "19cG1_rUlHffvh4vGRKtMO3aXNFd5m0mUd7kYfsc4vrc",
+          "cachedResultName": "Inventory Store"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "1753882792",
+          "cachedResultName": "Inventory"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Product ID": "={{ $json.product_id }}",
+            "Item name": "={{ $json.item_name }}",
+            "Quantity": "={{ $json.new_quantity }}",
+            "Unit": "={{ $json.unit }}",
+            "Reorder level": "={{ $json.reorder_level }}",
+            "Low stock alerted": "={{ $json.alert_flag }}",
+            "Updated at": "={{ $json.timestamp }}"
+          },
+          "schema": [
+            {
+              "id": "Product ID",
+              "displayName": "Product ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Item name",
+              "displayName": "Item name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Quantity",
+              "displayName": "Quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Unit",
+              "displayName": "Unit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reorder level",
+              "displayName": "Reorder level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Low stock alerted",
+              "displayName": "Low stock alerted",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated at",
+              "displayName": "Updated at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "3a89f535-aa26-4878-90ce-8650c6969bed",
+      "name": "Add New Product Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1184,
+        688
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "o1",
+              "name": "finished_at",
+              "value": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "81fe88d1-da11-4444-a65e-efb14641fed6",
+      "name": "Outcome",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1632,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const v = $('Validate and Calculate').first().json;\nconst e = $input.first().json.error;\nconst detail = e ? (typeof e === 'string' ? e : (e.message || JSON.stringify(e))) : 'unknown error';\nreturn [{ json: Object.assign({}, v, { status: 'Failed', alert_needed: false, message: 'Google Sheets error: the change was NOT confirmed. Do not treat the inventory as updated. Details: ' + detail }) }];"
+      },
+      "id": "0702fe23-ba2b-460f-89a2-fc73ab35a76c",
+      "name": "Sheet Write Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "19cG1_rUlHffvh4vGRKtMO3aXNFd5m0mUd7kYfsc4vrc",
+          "cachedResultName": "Inventory Store"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "1753882792",
+          "cachedResultName": "Inventory"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Product ID",
+              "lookupValue": "={{ $('Validate and Calculate').item.json.product_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f51697e4-9047-465c-9581-358a204eb8dc",
+      "name": "Read Back Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1184,
+        176
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const v = $('Validate and Calculate').first().json;\nconst rows = $input.all().map(i => i.json).filter(r => r && String(r['Product ID'] || '').trim() !== '');\nconst actual = rows.length === 1 ? Number(rows[0]['Quantity']) : NaN;\nconst ok = Number.isFinite(actual) && Math.abs(actual - Number(v.new_quantity)) < 0.0005;\nlet message;\nif (ok) {\n  message = 'Stock updated and verified: ' + v.item_name + ' went from ' + v.previous_quantity + ' to ' + v.new_quantity + ' ' + v.unit + '.';\n  if (v.low_stock) message += ' LOW STOCK WARNING: ' + v.new_quantity + ' ' + v.unit + ' left, reorder level is ' + v.reorder_level + ' ' + v.unit + '.';\n} else {\n  message = 'The update could NOT be verified. The sheet shows ' + (rows.length === 1 ? rows[0]['Quantity'] : rows.length + ' matching rows') + ' instead of ' + v.new_quantity + '. Check the sheet manually.';\n}\nreturn [{ json: Object.assign({}, v, { status: ok ? 'Success' : 'Failed', alert_needed: ok ? v.alert_needed : false, message: message }) }];"
+      },
+      "id": "494258b1-6ea6-4724-b8a0-5a254469a980",
+      "name": "Confirm Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const v = $('Validate and Calculate').first().json;\nlet message = 'New product registered: ' + v.product_id + ' ' + v.item_name + ' with ' + v.new_quantity + ' ' + v.unit + ' (reorder level ' + v.reorder_level + ').';\nif (v.low_stock) message += ' LOW STOCK WARNING: starting stock is at or below the reorder level.';\nreturn [{ json: Object.assign({}, v, { status: 'Success', message: message }) }];"
+      },
+      "id": "a346d878-7532-4700-b99f-95c12330bb1b",
+      "name": "Confirm New Product",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "19cG1_rUlHffvh4vGRKtMO3aXNFd5m0mUd7kYfsc4vrc",
+          "cachedResultName": "Inventory Store"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "802504652",
+          "cachedResultName": "Inventory Change Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.timestamp }}",
+            "Request ID": "={{ $json.request_id }}",
+            "Product ID": "={{ $json.product_id }}",
+            "Item name": "={{ $json.item_name }}",
+            "Action": "={{ $json.action }}",
+            "Previous quantity": "={{ $json.previous_quantity }}",
+            "Change quantity": "={{ $json.change_quantity }}",
+            "New quantity": "={{ $json.status === \"Success\" ? $json.new_quantity : \"\" }}",
+            "Status": "={{ $json.status }}",
+            "Message": "={{ $json.message }}",
+            "Request source": "={{ $json.source }}"
+          },
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Request ID",
+              "displayName": "Request ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Product ID",
+              "displayName": "Product ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Item name",
+              "displayName": "Item name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Action",
+              "displayName": "Action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Previous quantity",
+              "displayName": "Previous quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Change quantity",
+              "displayName": "Change quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "New quantity",
+              "displayName": "New quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Message",
+              "displayName": "Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Request source",
+              "displayName": "Request source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "aa7d339c-fd4d-4b6e-9a02-4d10164658c8",
+      "name": "Log Change",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1968,
+        448
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lYKIFcpU0MSa4WGy",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Outcome').item.json.alert_needed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $('Outcome').item.json.status }}",
+              "rightValue": "Success",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bc7cf993-2ed9-4113-85cd-c887ac6652f7",
+      "name": "Needs Low-Stock Alert?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2192,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "pv191130@gmail.com",
+        "subject": "=Low-stock alert: {{ $('Outcome').item.json.item_name }}",
+        "emailType": "text",
+        "message": "=Low-stock alert\n\nProduct: {{ $('Outcome').item.json.item_name }} ({{ $('Outcome').item.json.product_id }})\nCurrent stock: {{ $('Outcome').item.json.new_quantity }} {{ $('Outcome').item.json.unit }}\nReorder level: {{ $('Outcome').item.json.reorder_level }} {{ $('Outcome').item.json.unit }}\nAction: Review replenishment needs.\n\nTriggered by: {{ $('Outcome').item.json.action }} via {{ $('Outcome').item.json.source }} at {{ $('Outcome').item.json.timestamp }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f90aadd3-3032-4d86-a59e-3e0149dd8d78",
+      "name": "Email Low-Stock Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2416,
+        384
+      ],
+      "webhookId": "871fc8f3-8b95-41b2-b882-e0f2ff0ae6d4",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9MJX8ahvUvInShMW",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "status",
+              "value": "={{ $('Outcome').item.json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "r2",
+              "name": "message",
+              "value": "={{ $('Outcome').item.json.message }}",
+              "type": "string"
+            },
+            {
+              "id": "r3",
+              "name": "action",
+              "value": "={{ $('Outcome').item.json.action }}",
+              "type": "string"
+            },
+            {
+              "id": "r4",
+              "name": "product_id",
+              "value": "={{ $('Outcome').item.json.product_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r5",
+              "name": "item_name",
+              "value": "={{ $('Outcome').item.json.item_name }}",
+              "type": "string"
+            },
+            {
+              "id": "r6",
+              "name": "unit",
+              "value": "={{ $('Outcome').item.json.unit }}",
+              "type": "string"
+            },
+            {
+              "id": "r7",
+              "name": "previous_quantity",
+              "value": "={{ $('Outcome').item.json.previous_quantity }}",
+              "type": "string"
+            },
+            {
+              "id": "r8",
+              "name": "change_quantity",
+              "value": "={{ $('Outcome').item.json.change_quantity }}",
+              "type": "string"
+            },
+            {
+              "id": "r9",
+              "name": "new_quantity",
+              "value": "={{ $('Outcome').item.json.status === 'Success' ? $('Outcome').item.json.new_quantity : $('Outcome').item.json.previous_quantity }}",
+              "type": "string"
+            },
+            {
+              "id": "r10",
+              "name": "reorder_level",
+              "value": "={{ $('Outcome').item.json.reorder_level }}",
+              "type": "string"
+            },
+            {
+              "id": "r11",
+              "name": "low_stock",
+              "value": "={{ $('Outcome').item.json.status === 'Success' && $('Outcome').item.json.low_stock }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2ff6a1bb-64cc-4e82-98c2-2b7af8da497d",
+      "name": "Return Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2640,
+        448
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Stock Request": {
+      "main": [
+        [
+          {
+            "node": "Read Inventory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Inventory": {
+      "main": [
+        [
+          {
+            "node": "Validate and Calculate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate and Calculate": {
+      "main": [
+        [
+          {
+            "node": "Route Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Request": {
+      "main": [
+        [
+          {
+            "node": "Update Stock Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add New Product Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Stock Row": {
+      "main": [
+        [
+          {
+            "node": "Read Back Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sheet Write Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add New Product Row": {
+      "main": [
+        [
+          {
+            "node": "Confirm New Product",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sheet Write Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outcome": {
+      "main": [
+        [
+          {
+            "node": "Log Change",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet Write Failed": {
+      "main": [
+        [
+          {
+            "node": "Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Back Row": {
+      "main": [
+        [
+          {
+            "node": "Confirm Update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sheet Write Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm Update": {
+      "main": [
+        [
+          {
+            "node": "Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm New Product": {
+      "main": [
+        [
+          {
+            "node": "Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Change": {
+      "main": [
+        [
+          {
+            "node": "Needs Low-Stock Alert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Low-Stock Alert?": {
+      "main": [
+        [
+          {
+            "node": "Email Low-Stock Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Low-Stock Alert": {
+      "main": [
+        [
+          {
+            "node": "Return Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "140d9fb5-6e45-431e-9f7f-c1f87c8e32b4",
+  "meta": {
+    "instanceId": "207794e093b5b58253c69159858e80eecdc864e7fe70a2e8c01f1d11952c1493"
+  },
+  "nodeGroups": [
+    {
+      "id": "4cb8ddc4-af06-4424-878d-afe4f0e4eac5",
+      "name": "Validate and apply change",
+      "nodeIds": [
+        "eb4b0e6e-d2da-4cd7-93a9-775aa72a386e",
+        "115e5a12-0559-4157-898d-acd47da0619d",
+        "3149ceba-12d8-4b00-8e8e-81abc9fa48ab",
+        "81fb155a-df68-4111-b025-919f073ffd16",
+        "f51697e4-9047-465c-9581-358a204eb8dc",
+        "494258b1-6ea6-4724-b8a0-5a254469a980",
+        "3a89f535-aa26-4878-90ce-8650c6969bed",
+        "a346d878-7532-4700-b99f-95c12330bb1b",
+        "0702fe23-ba2b-460f-89a2-fc73ab35a76c",
+        "81fe88d1-da11-4444-a65e-efb14641fed6"
+      ],
+      "description": "Reads current stock, checks the product, quantity and unit, calculates the new total, then writes and re-reads the sheet to confirm"
+    },
+    {
+      "id": "ce313a93-f358-4a8d-b6f6-edc6e439afbe",
+      "name": "Log and alert",
+      "nodeIds": [
+        "aa7d339c-fd4d-4b6e-9a02-4d10164658c8",
+        "bc7cf993-2ed9-4113-85cd-c887ac6652f7",
+        "f90aadd3-3032-4d86-a59e-3e0149dd8d78",
+        "2ff6a1bb-64cc-4e82-98c2-2b7af8da497d"
+      ],
+      "description": "Records every attempt in the change log, emails the manager once when stock drops to the reorder level, and returns the result"
+    }
+  ],
+  "id": "If3iTuRB4OTfkRLZ",
+  "tags": []
+}
